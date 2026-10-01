@@ -2,11 +2,12 @@ import {
   clearSessionCookie,
   createAuthorizedSession,
   hasTelegramConfiguration,
+  isLocalDevelopment,
   jsonResponse
 } from '../../_lib/telegram-auth.js';
 
 export async function onRequestGet(context) {
-  if (context.env.ENVIRONMENT === 'production') {
+  if (!isLocalDevelopment(context)) {
     return jsonResponse({ error: 'El envío a Telegram está desactivado temporalmente en producción.' }, 503);
   }
 

@@ -3,6 +3,7 @@ import { generateTelegramPost } from '../../../src/lib/offer-telegram.js';
 import {
   hasTelegramConfiguration,
   isAuthorizedRequest,
+  isLocalDevelopment,
   jsonResponse
 } from '../../_lib/telegram-auth.js';
 
@@ -21,7 +22,7 @@ function isPublishableOffer(offer) {
 }
 
 export async function onRequestPost(context) {
-  if (context.env.ENVIRONMENT === 'production') {
+  if (!isLocalDevelopment(context)) {
     return jsonResponse({ error: 'El envío a Telegram está desactivado temporalmente en producción.' }, 503);
   }
 

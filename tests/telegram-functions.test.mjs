@@ -82,6 +82,36 @@ test('production session and send endpoints are disabled before creating session
   assert.equal(fetchCount, 0);
 });
 
+test('remote session and send endpoints remain disabled even with development bindings', async (t) => {
+  const originalFetch = globalThis.fetch;
+  let fetchCount = 0;
+  globalThis.fetch = async () => {
+    fetchCount += 1;
+    return Response.json({ ok: true });
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const remoteContext = (path, options = {}) => ({
+    request: new Request(`https://preview.pages.dev${path}`, {
+      method: options.method || 'GET',
+      headers: options.body !== undefined ? { 'Content-Type': 'application/json' } : {},
+      ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {})
+    }),
+    env: testEnv
+  });
+
+  const sessionResponse = await onRequestGet(remoteContext('/api/telegram/session'));
+  assert.equal(sessionResponse.status, 503);
+  assert.equal(sessionResponse.headers.has('Set-Cookie'), false);
+
+  const sendResponse = await onRequestPost(remoteContext('/api/telegram/send', {
+    method: 'POST',
+    body: { action: 'test' }
+  }));
+  assert.equal(sendResponse.status, 503);
+  assert.equal(fetchCount, 0);
+});
+
 test('send endpoint accepts only explicit demo test action and relays server-side credentials', async (t) => {
   const cookie = await sessionCookie();
   const originalFetch = globalThis.fetch;

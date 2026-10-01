@@ -68,7 +68,7 @@ Las ofertas DEMO están protegidas contra edición directa y al duplicarlas se c
 
 El panel crea y copia un borrador. El envío es otra acción explícita: solo se habilita para una oferta publicada, verificada, no DEMO, vigente y con URL afiliada válida; abre una previsualización y solicita confirmación. La acción de prueba envía únicamente el texto fijo `PRUEBA DE TELEGRAM — LA OFERTA DEL CHOLLO`, nunca datos de una oferta ficticia.
 
-El servidor está implementado como Cloudflare Pages Functions en `functions/api/telegram/`. El token se lee exclusivamente desde `context.env` en código server-side. **Por ahora, ambas rutas de sesión y envío se desactivan en producción**: responden `503` antes de crear una sesión, validar credenciales o contactar con Telegram, incluso si los secretos siguen configurados. En desarrollo local se conserva la autenticación limitada a loopback, una cookie HttpOnly de cinco minutos firmada con `TELEGRAM_PUBLISH_SECRET`, validación de origen y cuerpo, y los controles de publicación de ofertas. El navegador nunca recibe el token ni el secreto de publicación.
+El servidor está implementado como Cloudflare Pages Functions en `functions/api/telegram/`. El token se lee exclusivamente desde `context.env` en código server-side. **Por ahora, ambas rutas de sesión y envío solo se habilitan en `localhost`/loopback con `ENVIRONMENT=development`**; cualquier petición remota responde `503` antes de crear una sesión, validar credenciales o contactar con Telegram, incluso si los secretos siguen configurados. En desarrollo local se conserva la autenticación limitada a loopback, una cookie HttpOnly de cinco minutos firmada con `TELEGRAM_PUBLISH_SECRET`, validación de origen y cuerpo, y los controles de publicación de ofertas. El navegador nunca recibe el token ni el secreto de publicación.
 
 | Variable | Dónde | Uso |
 | --- | --- | --- |
@@ -81,7 +81,7 @@ El servidor está implementado como Cloudflare Pages Functions en `functions/api
 
 Para desarrollo, conserva los valores en `.env` (ignorado por Git) y copia manualmente las variables server-side a `.dev.vars` (también ignorado; plantilla `.dev.vars.example`). Nunca guardes credenciales en `wrangler.toml`, JavaScript del navegador, HTML, JSON o GitHub. Antes de compartir, confirma `git check-ignore .env .dev.vars` y verifica que ninguno figure en `git status` ni `git ls-files`.
 
-No elimines los secretos de Cloudflare: conservarlos no habilita el envío. Las Pages Functions los ignoran en producción mientras `ENVIRONMENT=production`; el código de validación con Access permanece intacto para reactivar el flujo cuando se complete la configuración de Zero Trust.
+No elimines los secretos de Cloudflare: conservarlos no habilita el envío. Las Pages Functions no pueden usarlos desde producción ni desde ningún host remoto mientras el cierre local esté activo; el código de validación con Access permanece intacto para reactivar el flujo cuando se complete la configuración de Zero Trust.
 
 ### Configuración de Cloudflare
 
