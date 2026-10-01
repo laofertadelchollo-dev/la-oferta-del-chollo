@@ -1,4 +1,8 @@
 import { isCalendarDate, isProductionOfferEligible, isSafeWebUrl } from './offer-policy.js';
+import { calculateDiscount } from './offer-math.js';
+
+export { calculateDiscount, createSlug } from './offer-math.js';
+export { generateTelegramPost } from './offer-telegram.js';
 
 export const SITE = {
   name: 'LA OFERTA DEL CHOLLO',
@@ -60,10 +64,10 @@ export type Offer = {
   expiresAt?: string;
   lastVerifiedAt?: string;
   status: OfferStatus;
-  featured?: boolean;
-  verified?: boolean;
-  demo?: boolean;
-  score?: number;
+  featured: boolean;
+  verified: boolean;
+  demo: boolean;
+  score: number;
   tags: string[];
 };
 
@@ -85,15 +89,6 @@ export type Guide = {
 
 export function formatMoney(value: number): string {
   return `${new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)} €`;
-}
-
-export function calculateDiscount(currentPrice: number, previousPrice?: number, previousPriceVerified = false): number {
-  if (!Number.isFinite(currentPrice) || currentPrice <= 0
-    || !previousPriceVerified
-    || !Number.isFinite(previousPrice)
-    || !previousPrice
-    || previousPrice <= currentPrice) return 0;
-  return Math.round(((previousPrice - currentPrice) / previousPrice) * 100);
 }
 
 export function isExpired(offer: Pick<Offer, 'expiresAt' | 'status'>, today = new Date().toISOString().slice(0, 10)): boolean {
@@ -147,35 +142,4 @@ export function getOfferOutboundUrl(offer: Pick<Offer, 'sourceUrl' | 'affiliateU
 
 export function getOfferDiscount(offer: Offer): number {
   return calculateDiscount(offer.currentPrice, offer.previousPrice, offer.previousPriceVerified);
-}
-
-export function generateTelegramPost(offer: Offer): string {
-  const url = getOfferOutboundUrl(offer);
-  const discount = getOfferDiscount(offer);
-  const lines = [
-    '🔥 OFERTA',
-    '',
-    offer.title.trim(),
-    '',
-    `💰 Precio: ${formatMoney(offer.currentPrice)}`,
-    ...(discount ? [`📉 Descuento: ${discount} %`] : []),
-    '',
-    `✅ ${offer.shortDescription.trim()}`,
-    ...(offer.conditions.trim() ? ['', `⚠️ ${offer.conditions.trim()}`] : []),
-    '',
-    '🛒 VER OFERTA:',
-    url || '[Añade una URL real antes de publicar]',
-    ...(getSafeAffiliateUrl(offer.affiliateUrl) ? ['', '🔗 Enlace de afiliado'] : [])
-  ];
-  return lines.join('\n');
-}
-
-export function createSlug(value: string): string {
-  return value
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .trim()
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-');
 }

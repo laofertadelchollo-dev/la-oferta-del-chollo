@@ -139,13 +139,41 @@ const isDevelopment = import.meta.env.DEV;
           <h2>Borrador para Telegram</h2>
           <p>El borrador usa solo los datos del formulario. No se publica ni se envía a Telegram.</p>
           <textarea id="telegram-output" rows="14" readonly aria-label="Texto de Telegram generado"></textarea>
-          <button type="button" id="copy-telegram" class="primary-btn">Copiar texto para Telegram</button>
+          <button type="button" id="copy-telegram" class="primary-btn">Copiar texto</button>
           <p id="telegram-status" class="muted-text" role="status" aria-live="polite"></p>
         </aside>
       </div>
 
+      <section class="admin-import" aria-labelledby="import-heading">
+        <h2 id="import-heading">Importar ofertas desde JSON</h2>
+        <p>Pega un array de ofertas. Se validarán campos, fechas, precios, estados y URLs antes de sustituir el catálogo local.</p>
+        <label for="import-json">JSON de ofertas</label>
+        <textarea id="import-json" rows="10" spellcheck="false" placeholder='[{"id":"...","title":"..."}]'></textarea>
+        <div class="admin-actions">
+          <button type="button" id="validate-import" class="secondary-btn">Validar e importar</button>
+        </div>
+        <p id="import-errors" class="admin-status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="admin-simulator" aria-labelledby="simulator-heading">
+        <h2 id="simulator-heading">Simulador de candidatos · DEMO</h2>
+        <p>Los candidatos de prueba recorren scoring y verificación, pero nunca pueden convertirse en ofertas publicadas.</p>
+        <button type="button" id="run-simulator" class="secondary-btn">Procesar candidatos DEMO</button>
+        <div id="candidate-results" class="candidate-results" aria-live="polite"></div>
+      </section>
+
       <section class="admin-records" aria-labelledby="offers-heading">
         <h2 id="offers-heading">Ofertas del navegador</h2>
+        <label class="admin-filter" for="offer-filter">
+          Filtrar ofertas
+          <select id="offer-filter">
+            <option value="all">Todas</option>
+            <option value="draft">Borradores</option>
+            <option value="verified">Verificadas</option>
+            <option value="published">Publicadas</option>
+            <option value="expired">Caducadas</option>
+          </select>
+        </label>
         <div id="offer-list" class="admin-record-list"></div>
       </section>
     </div>

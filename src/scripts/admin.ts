@@ -6,10 +6,16 @@ import {
   formatMoney,
   generateTelegramPost,
   getOfferStatusLabel,
+  getOfferState,
   isHttpUrl,
   type Offer,
   type OfferStatus
 } from '../lib/site';
+import { scoreCandidate } from '../lib/offer-scoring.js';
+import { verifyCandidate, verifyOffer } from '../lib/offer-verification.js';
+import { createOffer, publishOffer } from '../lib/offer-publishing.js';
+import { isCalendarDate } from '../lib/offer-policy.js';
+import { migrateStoredOfferList, parseOfferJson, validateOfferList } from '../lib/offer-import.js';
 
 const storageKey = 'la-oferta-del-chollo-offers-v1';
 const today = () => new Date().toISOString().slice(0, 10);
@@ -19,43 +25,16 @@ const getElement = <T extends HTMLElement>(selector: string): T => {
   return element;
 };
 
-function isOfferStatus(value: unknown): value is OfferStatus {
-  return value === 'draft' || value === 'verified' || value === 'published' || value === 'expired';
-}
-
-function isOfferRecord(value: unknown): value is Offer {
-  if (!value || typeof value !== 'object') return false;
-  const record = value as Record<string, unknown>;
-  return typeof record.id === 'string'
-    && typeof record.title === 'string'
-    && typeof record.slug === 'string'
-    && typeof record.store === 'string'
-    && typeof record.category === 'string'
-    && typeof record.currentPrice === 'number'
-    && typeof record.sourceUrl === 'string'
-    && typeof record.verified === 'boolean'
-    && isOfferStatus(record.status)
-    && Array.isArray(record.tags);
-}
-
-function validateOfferList(value: unknown): Offer[] {
-  if (!Array.isArray(value) || !value.every(isOfferRecord)) {
-    throw new Error('El archivo debe ser un array de ofertas con los campos requeridos.');
-  }
-  const ids = new Set(value.map((offer) => offer.id));
-  const slugs = new Set(value.map((offer) => offer.slug));
-  if (ids.size !== value.length || slugs.size !== value.length) {
-    throw new Error('El JSON contiene identificadores o slugs duplicados.');
-  }
-  return value;
-}
-
 export function initializeLocalOfferManager(): void {
   const form = getElement<HTMLFormElement>('#offer-form');
   const statusMessage = getElement<HTMLParagraphElement>('#admin-status');
   const list = getElement<HTMLDivElement>('#offer-list');
   const output = getElement<HTMLTextAreaElement>('#telegram-output');
   const telegramStatus = getElement<HTMLParagraphElement>('#telegram-status');
+  const importOutput = getElement<HTMLParagraphElement>('#import-errors');
+  const importTextarea = getElement<HTMLTextAreaElement>('#import-json');
+  const filter = getElement<HTMLSelectElement>('#offer-filter');
+  const candidateResults = getElement<HTMLDivElement>('#candidate-results');
   const idInput = getElement<HTMLInputElement>('#offer-id');
   const titleInput = getElement<HTMLInputElement>('#title');
   const slugSeed = seedOffers.map((offer) => ({ ...offer }));
@@ -63,10 +42,19 @@ export function initializeLocalOfferManager(): void {
 
   try {
     const stored = localStorage.getItem(storageKey);
-    records = stored ? validateOfferList(JSON.parse(stored)) : slugSeed;
+    if (stored) {
+      const parsed: unknown = JSON.parse(stored);
+      records = migrateStoredOfferList(parsed);
+      if (JSON.stringify(records) !== JSON.stringify(parsed)) {
+        localStorage.setItem(storageKey, JSON.stringify(records));
+        statusMessage.textContent = 'Se han actualizado los datos locales al modelo actual sin descartar ofertas.';
+      }
+    } else {
+      records = slugSeed;
+    }
   } catch (error) {
     records = slugSeed;
-    statusMessage.textContent = `No se pudieron leer los datos locales. Se muestran los ejemplos incluidos: ${error instanceof Error ? error.message : 'error desconocido'}`;
+    statusMessage.textContent = `No se pudieron leer los datos locales; se muestran los ejemplos incluidos: ${error instanceof Error ? error.message : 'error desconocido'}`;
     statusMessage.classList.add('is-error');
   }
 
@@ -114,35 +102,32 @@ export function initializeLocalOfferManager(): void {
 
     const errors: string[] = [];
     if (!title) errors.push('Escribe el nombre del producto.');
+    if (!store) errors.push('Indica la tienda.');
     if (!CATEGORIES.some((item) => item.slug === category)) errors.push('Elige una categoría válida.');
-    if (chosenStatus === 'verified' || chosenStatus === 'published') {
-      if (!store) errors.push('Indica la tienda para publicar la oferta.');
+    if (chosenStatus !== 'draft' && chosenStatus !== 'expired') {
       if (!Number.isFinite(currentPrice) || currentPrice <= 0) errors.push('Indica un precio actual mayor que cero.');
       if (!isHttpUrl(sourceUrl)) errors.push('Añade una URL de oferta válida (http o https).');
       if (!verified) errors.push('Marca que has comprobado los datos antes de publicar.');
-      if (chosenStatus === 'published' && !isHttpUrl(affiliateUrl)) {
-        errors.push('Para publicar una oferta monetizada, añade su enlace de afiliación real.');
-      }
+      if (chosenStatus === 'published' && !isHttpUrl(affiliateUrl)) errors.push('Para publicar una oferta monetizada, añade su enlace de afiliación real.');
       if (!input('short-description').value.trim()) errors.push('Añade un resumen editorial.');
       if (!input('description').value.trim()) errors.push('Añade una descripción editorial.');
     }
-    if (sourceUrl && !isHttpUrl(sourceUrl)) errors.push('La URL de oferta debe comenzar por http:// o https://.');
-    if (affiliateUrl && !isHttpUrl(affiliateUrl)) errors.push('La URL afiliada debe comenzar por http:// o https://.');
-    if (previousPriceText && (!Number.isFinite(previousPrice) || !previousPrice || previousPrice <= currentPrice)) {
-      errors.push('El precio anterior debe ser superior al precio actual.');
-    }
+    if (sourceUrl && !isHttpUrl(sourceUrl)) errors.push('La URL de oferta debe ser válida y no contener credenciales.');
+    if (affiliateUrl && !isHttpUrl(affiliateUrl)) errors.push('La URL afiliada debe ser válida y no contener credenciales.');
+    if (previousPriceText && (!Number.isFinite(previousPrice) || !previousPrice || previousPrice <= currentPrice)) errors.push('El precio anterior debe ser superior al precio actual.');
     if (previousPriceVerified && !previousPrice) errors.push('Introduce un precio anterior antes de marcarlo como comprobado.');
+    if (!isCalendarDate(publishedAt)) errors.push('Indica una fecha de publicación válida.');
+    if (expiresAt && !isCalendarDate(expiresAt)) errors.push('La fecha de caducidad no es válida.');
     if (expiresAt && publishedAt && expiresAt < publishedAt) errors.push('La fecha de caducidad no puede ser anterior a la publicación.');
+    if (chosenStatus === 'published' && expiresAt && expiresAt < today()) errors.push('No se puede publicar una oferta caducada.');
     if (!slug) errors.push('El título no genera un slug válido.');
-    if (image && !((image.startsWith('/') && !image.startsWith('//')) || isHttpUrl(image))) {
-      errors.push('La imagen debe ser una ruta local o una URL http(s) válida.');
-    }
+    if (image && !((image.startsWith('/') && !image.startsWith('//')) || isHttpUrl(image))) errors.push('La imagen debe ser una ruta local o una URL http(s) válida.');
 
     const duplicateSlug = records.some((offer) => offer.slug === slug && offer.id !== existing?.id);
     if (duplicateSlug) errors.push('Ya existe otra oferta con ese slug.');
     if (errors.length) throw new Error(errors.join(' '));
 
-    const offer: Offer = {
+    return {
       id: existing?.id || `offer-${crypto.randomUUID()}`,
       title,
       slug,
@@ -162,14 +147,14 @@ export function initializeLocalOfferManager(): void {
       affiliateUrl,
       publishedAt,
       ...(expiresAt ? { expiresAt } : {}),
-      ...(lastVerifiedAt ? { lastVerifiedAt } : existing?.lastVerifiedAt && verified ? { lastVerifiedAt: existing.lastVerifiedAt } : {}),
+      ...(lastVerifiedAt ? { lastVerifiedAt } : existing?.lastVerifiedAt ? { lastVerifiedAt: existing.lastVerifiedAt } : {}),
       status: chosenStatus,
       featured: checkbox('featured').checked,
       verified,
       demo: false,
+      score: existing?.score || 0,
       tags: input('tags').value.split(',').map((tag) => tag.trim()).filter(Boolean)
     };
-    return offer;
   };
 
   const setForm = (offer?: Offer) => {
@@ -217,42 +202,92 @@ export function initializeLocalOfferManager(): void {
     return control;
   };
 
+  const updateRecord = (updated: Offer) => persist(records.map((offer) => offer.id === updated.id ? updated : offer));
+
   function renderRecords() {
     list.replaceChildren();
-    if (!records.length) {
+    const visible = records.filter((offer) => {
+      const state = getOfferState(offer);
+      if (filter.value === 'all') return true;
+      if (filter.value === 'expired') return state === 'expired';
+      return offer.status === filter.value;
+    });
+    if (!visible.length) {
       const empty = document.createElement('p');
       empty.className = 'empty-state';
-      empty.textContent = 'No hay ofertas guardadas en este navegador.';
+      empty.textContent = 'No hay ofertas para este filtro.';
       list.append(empty);
       return;
     }
-    for (const offer of records) {
+
+    for (const offer of visible) {
       const card = document.createElement('article');
       card.className = 'admin-record';
       const details = document.createElement('div');
       const title = document.createElement('h3');
       title.textContent = offer.title || '(Sin título)';
+      const discountValue = calculateDiscount(offer.currentPrice, offer.previousPrice, offer.previousPriceVerified);
+      const discount = discountValue ? ` · ${discountValue}%` : '';
+      const checked = offer.lastVerifiedAt ? ` · Comprobada: ${offer.lastVerifiedAt.slice(0, 10)}` : ' · Sin comprobar';
       const summary = document.createElement('p');
-      summary.textContent = `${offer.store || 'Tienda sin indicar'} · ${formatMoney(offer.currentPrice || 0)} · ${getOfferStatusLabel(offer.status)}${offer.demo ? ' · DEMO' : ''}`;
+      summary.textContent = `${offer.store || 'Tienda sin indicar'} · ${formatMoney(offer.currentPrice || 0)}${discount} · ${getOfferStatusLabel(getOfferState(offer))} · ${offer.verified ? 'Verificada' : 'No verificada'} · Publicada: ${offer.publishedAt || 'sin fecha'}${checked}${offer.demo ? ' · DEMO' : ''}`;
       details.append(title, summary);
+      if (isHttpUrl(offer.affiliateUrl)) {
+        const affiliate = document.createElement('a');
+        affiliate.href = offer.affiliateUrl;
+        affiliate.target = '_blank';
+        affiliate.rel = 'noopener noreferrer nofollow sponsored';
+        affiliate.textContent = 'Abrir enlace afiliado';
+        details.append(affiliate);
+      } else {
+        const missingAffiliate = document.createElement('p');
+        missingAffiliate.textContent = 'Sin enlace afiliado';
+        details.append(missingAffiliate);
+      }
+
       const actions = document.createElement('div');
       actions.className = 'admin-record-actions';
-      actions.append(
-        button('Editar', () => {
-          if (offer.demo) {
-            setMessage('Los ejemplos DEMO están protegidos. Duplícalos para crear un borrador limpio.', true);
+      actions.append(button('Editar', () => {
+        if (offer.demo) {
+          setMessage('Los ejemplos DEMO están protegidos. Duplícalos para crear un borrador limpio.', true);
+          return;
+        }
+        setForm(offer);
+      }));
+      if (!offer.demo && getOfferState(offer) !== 'expired' && offer.status !== 'published') {
+        actions.append(button('Verificar', () => {
+          const result = verifyOffer(offer);
+          if (!result.valid || !result.offer) {
+            setMessage(`No se puede verificar: ${result.errors.join(' ')}`, true);
             return;
           }
-          setForm(offer);
-        }),
+          if (updateRecord(result.offer)) setMessage('Oferta verificada. Revisa los datos y publícala manualmente cuando tenga enlace afiliado.');
+        }));
+      }
+      if (offer.status === 'verified' && offer.verified && !offer.demo) {
+        actions.append(button('Publicar', () => {
+          try {
+            const published = publishOffer(offer);
+            if (updateRecord(published)) setMessage('Oferta publicada en el catálogo local. Exporta el JSON y despliega para reflejarlo en la web.');
+          } catch (error) {
+            setMessage(error instanceof Error ? error.message : 'No se pudo publicar la oferta.', true);
+          }
+        }, 'primary-btn'));
+      }
+      if (offer.status === 'published') {
+        actions.append(button('Despublicar', () => {
+          if (updateRecord({ ...offer, status: 'draft' })) setMessage('Oferta despublicada en el catálogo local. Exporta y despliega el catálogo para aplicarlo.');
+        }));
+      }
+      actions.append(
         button('Duplicar', () => {
           const id = `offer-${crypto.randomUUID()}`;
           const duplicate: Offer = offer.demo
             ? {
                 id, title: '', slug: '', store: '', category: '', currentPrice: 0, conditions: '',
                 seller: '', description: '', shortDescription: '', sourceUrl: '', affiliateUrl: '',
-                publishedAt: '', status: 'draft', verified: false, featured: false, demo: false,
-                previousPriceVerified: false, tags: []
+                publishedAt: today(), status: 'draft', verified: false, featured: false, demo: false,
+                previousPriceVerified: false, score: 0, tags: [], coupon: ''
               }
             : { ...offer, id, slug: `${offer.slug}-copia`, title: `${offer.title} (copia)`, status: 'draft', verified: false, lastVerifiedAt: undefined, demo: false };
           if (!offer.demo && records.some((item) => item.slug === duplicate.slug)) duplicate.slug = `${offer.slug}-copia-${Date.now()}`;
@@ -274,6 +309,26 @@ export function initializeLocalOfferManager(): void {
     }
   }
 
+  function importOfferJson(text: string) {
+    try {
+      const imported = parseOfferJson(text) as Offer[];
+      if (!window.confirm(`Se van a sustituir las ${records.length} ofertas locales por ${imported.length} registros validados. ¿Continuar?`)) {
+        importOutput.textContent = 'Importación cancelada; no se modificaron los datos.';
+        importOutput.classList.remove('is-error');
+        return;
+      }
+      if (persist(imported)) {
+        importOutput.textContent = `${imported.length} ofertas importadas correctamente.`;
+        importOutput.classList.remove('is-error');
+        setMessage(`${imported.length} ofertas importadas en este navegador.`);
+      }
+    } catch (error) {
+      importOutput.textContent = `No se importó nada. ${error instanceof Error ? error.message : 'Error desconocido.'}`;
+      importOutput.classList.add('is-error');
+      setMessage('El JSON tiene errores; corrígelos antes de importar.', true);
+    }
+  }
+
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     const existing = currentExisting();
@@ -291,6 +346,7 @@ export function initializeLocalOfferManager(): void {
     }
   });
 
+  filter.addEventListener('change', renderRecords);
   getElement<HTMLButtonElement>('#new-offer').addEventListener('click', () => setForm());
   getElement<HTMLButtonElement>('#cancel-edit').addEventListener('click', () => setForm());
   getElement<HTMLButtonElement>('#generate-slug').addEventListener('click', () => {
@@ -307,20 +363,23 @@ export function initializeLocalOfferManager(): void {
     anchor.href = URL.createObjectURL(blob);
     anchor.download = 'offers.json';
     anchor.click();
-    URL.revokeObjectURL(anchor.href);
+    setTimeout(() => URL.revokeObjectURL(anchor.href), 0);
     setMessage('JSON exportado. Revisa el archivo antes de sustituir src/data/offers.json.');
   });
 
+  getElement<HTMLButtonElement>('#validate-import').addEventListener('click', () => importOfferJson(importTextarea.value));
   getElement<HTMLInputElement>('#import-offers').addEventListener('change', async (event) => {
-    const file = (event.currentTarget as HTMLInputElement).files?.[0];
+    const fileInput = event.currentTarget as HTMLInputElement;
+    const file = fileInput.files?.[0];
     if (!file) return;
     try {
-      const imported = validateOfferList(JSON.parse(await file.text()));
-      if (persist(imported)) setMessage(`${imported.length} ofertas importadas en este navegador.`);
+      importTextarea.value = await file.text();
+      importOfferJson(importTextarea.value);
     } catch (error) {
-      setMessage(`No se pudo importar el JSON: ${error instanceof Error ? error.message : 'error desconocido'}`, true);
+      importOutput.textContent = `No se pudo leer el archivo: ${error instanceof Error ? error.message : 'error desconocido'}`;
+      importOutput.classList.add('is-error');
     } finally {
-      (event.currentTarget as HTMLInputElement).value = '';
+      fileInput.value = '';
     }
   });
 
@@ -329,6 +388,45 @@ export function initializeLocalOfferManager(): void {
     if (persist(seedOffers.map((offer) => ({ ...offer })))) {
       setForm();
       setMessage('Se han restaurado los ejemplos DEMO en este navegador.');
+    }
+  });
+
+  getElement<HTMLButtonElement>('#run-simulator').addEventListener('click', () => {
+    candidateResults.replaceChildren();
+    for (const seed of seedOffers.slice(0, 3)) {
+      const candidate = {
+        title: seed.title,
+        store: seed.store,
+        currentPrice: seed.currentPrice,
+        ...(seed.previousPrice ? { previousPrice: seed.previousPrice } : {}),
+        sourceUrl: seed.sourceUrl,
+        ...(seed.seller ? { seller: seed.seller } : {}),
+        ...(seed.coupon ? { coupon: seed.coupon } : {}),
+        conditions: seed.conditions,
+        checkedAt: new Date().toISOString(),
+        previousPriceVerified: false,
+        demo: true
+      };
+      const score = scoreCandidate(candidate);
+      const verification = verifyCandidate(candidate);
+      const approval = verification.valid ? 'Pendiente de aprobación editorial; DEMO bloqueada.' : 'No aprobable: corrige los errores de validación.';
+      let publication = 'No publicada: requiere aprobación manual y datos reales.';
+      if (verification.valid) {
+        try {
+          publishOffer(createOffer(candidate));
+          publication = 'Error: el simulador nunca debe publicar DEMO.';
+        } catch (error) {
+          publication = `Publicación bloqueada correctamente: ${error instanceof Error ? error.message : 'error desconocido'}`;
+        }
+      }
+      const result = document.createElement('article');
+      result.className = 'candidate-result';
+      const heading = document.createElement('h3');
+      heading.textContent = `${candidate.title} · DEMO`;
+      const stages = document.createElement('p');
+      stages.textContent = `Candidato → puntuación ${score}/100 → verificación ${verification.valid ? 'superada' : verification.errors.join(' ')} → ${approval} → ${publication}`;
+      result.append(heading, stages);
+      candidateResults.append(result);
     }
   });
 
@@ -341,18 +439,22 @@ export function initializeLocalOfferManager(): void {
       telegramStatus.textContent = 'Texto copiado. No se ha enviado a Telegram.';
     } catch (error) {
       telegramStatus.textContent = error instanceof Error
-        ? `Completa los datos necesarios antes de copiar: ${error.message}`
-        : 'No se pudo generar el borrador.';
+        ? `No se pudo generar o copiar el texto: ${error.message}`
+        : 'No se pudo generar o copiar el texto.';
     }
   });
 
   const refreshTelegram = () => {
     const existing = currentExisting();
-    if (!titleInput.value.trim() || !input('current-price').value || !input('source-url').value.trim()) return;
+    if (!titleInput.value.trim() || !input('current-price').value || !input('source-url').value.trim()) {
+      output.value = '';
+      return;
+    }
     try {
       output.value = generateTelegramPost(collectOffer(existing));
-    } catch {
+    } catch (error) {
       output.value = '';
+      telegramStatus.textContent = error instanceof Error ? error.message : 'Completa los datos reales de la oferta.';
     }
   };
   form.addEventListener('input', refreshTelegram);

@@ -6,21 +6,25 @@ const reservedHosts = new Set([
   'test'
 ]);
 
-export function isSafeWebUrl(value) {
+export function isSafeDemoUrl(value) {
   if (typeof value !== 'string' || !value.trim()) return false;
 
   try {
     const url = new URL(value);
-    const hostname = url.hostname.toLowerCase();
-    const reservedHost = [...reservedHosts].some((host) => hostname === host || hostname.endsWith(`.${host}`))
-      || hostname.endsWith('.example');
     return (url.protocol === 'https:' || url.protocol === 'http:')
       && !url.username
-      && !url.password
-      && !reservedHost;
+      && !url.password;
   } catch {
     return false;
   }
+}
+
+export function isSafeWebUrl(value) {
+  if (!isSafeDemoUrl(value)) return false;
+  const hostname = new URL(value).hostname.toLowerCase();
+  const reservedHost = [...reservedHosts].some((host) => hostname === host || hostname.endsWith(`.${host}`))
+    || hostname.endsWith('.example');
+  return !reservedHost;
 }
 
 export function isCalendarDate(value) {
@@ -49,6 +53,7 @@ export function isProductionOfferEligible(offer, today = new Date().toISOString(
     || Date.parse(offer.lastVerifiedAt) > Date.now()) return false;
 
   if (offer.expiresAt && (!isCalendarDate(offer.expiresAt) || offer.expiresAt < today)) return false;
+  if (offer.affiliateUrl && !isSafeWebUrl(offer.affiliateUrl)) return false;
   if (offer.status === 'published' && !isSafeWebUrl(offer.affiliateUrl)) return false;
   return true;
 }

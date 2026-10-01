@@ -20,7 +20,7 @@ const status = getOfferState(offer);
 const safeAffiliateUrl = getSafeAffiliateUrl(offer.affiliateUrl);
 const outboundUrl = getOfferOutboundUrl(offer);
 const discount = getOfferDiscount(offer);
-const telegramText = generateTelegramPost(offer);
+const telegramText = offer.demo ? '' : generateTelegramPost(offer);
 const publishedDate = offer.publishedAt
   ? new Intl.DateTimeFormat('es-ES', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${offer.publishedAt.slice(0, 10)}T00:00:00Z`))
   : undefined;
@@ -75,7 +75,7 @@ const productSchema = !offer.demo && offer.verified && outboundUrl ? {
           {outboundUrl
             ? <a href={outboundUrl} class="primary-btn" target="_blank" rel={`noopener noreferrer${safeAffiliateUrl ? ' sponsored nofollow' : ''}`}>Ver oferta</a>
             : <span class="muted-text">Añade un enlace válido antes de publicar.</span>}
-          <button class="secondary-btn copy-telegram" type="button" data-copy-text={telegramText}>Copiar texto para Telegram</button>
+          {telegramText && <button class="secondary-btn copy-telegram" type="button" data-copy-text={telegramText}>Copiar texto para Telegram</button>}
         </div>
 
         <p class="affiliate-note">{safeAffiliateUrl ? 'Este enlace es de afiliación. Si compras a través de él, podríamos recibir una comisión sin coste adicional para ti.' : 'No se ha indicado un enlace de afiliación para esta oferta.'}</p>

@@ -249,6 +249,17 @@ h2 { font-size: clamp(1.8rem, 3vw, 2.5rem); margin-bottom: 0.9rem; }
 .admin-record { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem; border: 1px solid var(--border); border-radius: 12px; background: #fff; }
 .admin-record h3, .admin-record p { margin: 0; overflow-wrap: anywhere; }
 .admin-record-actions { flex-shrink: 0; }
+.admin-record > div:first-child { display: grid; gap: 0.4rem; min-width: 0; }
+.admin-record a { overflow-wrap: anywhere; }
+.admin-filter { display: flex; align-items: center; gap: 0.75rem; max-width: 340px; margin: 1rem 0; color: var(--muted); font-weight: 600; }
+.admin-filter select { flex: 1; min-width: 0; padding: 0.65rem; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+.admin-import, .admin-simulator { margin-top: 2rem; padding: 1.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; }
+.admin-import > p, .admin-simulator > p { max-width: 75ch; }
+.admin-import textarea { width: 100%; margin-top: 0.5rem; padding: 0.8rem; border: 1px solid var(--border); border-radius: 8px; font-family: ui-monospace, monospace; }
+.candidate-results { display: grid; gap: 0.75rem; margin-top: 1rem; }
+.candidate-result { padding: 1rem; border: 1px solid var(--border); border-radius: 10px; background: #f8fafc; }
+.candidate-result h3, .candidate-result p { margin: 0; overflow-wrap: anywhere; }
+.candidate-result p { margin-top: 0.4rem; }
 .danger-btn { color: #b91c1c; }
 .analytics-notice { position: fixed; z-index: 50; inset: auto 1rem 1rem; max-width: 760px; margin-inline: auto; padding: 1rem; align-items: center; justify-content: space-between; gap: 1rem; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
 .analytics-notice p { margin: 0; }

@@ -58,7 +58,9 @@ Para una oferta real, usa una imagen propia o autorizada y guárdala bajo `publi
 
 ### Panel local
 
-Abre `/admin/` mientras ejecutas `npm run dev`. Permite crear, editar, duplicar y eliminar registros, fijar estado, verificar precios, generar slugs, preparar texto de Telegram e importar/exportar JSON. Los cambios se guardan en `localStorage` de ese navegador; **no modifican automáticamente el sitio ni se sincronizan con otros dispositivos**. Exporta `offers.json`, revísalo y sustituye manualmente `src/data/offers.json` antes de volver a compilar.
+Abre `/admin/` mientras ejecutas `npm run dev`. Permite crear, editar, verificar, publicar, despublicar, duplicar y eliminar ofertas; filtra por borrador, verificada, publicada o caducada. La importación de JSON valida la estructura y comunica errores por registro antes de pedir confirmación; nunca ignora silenciosamente campos incorrectos. También dispone de un simulador de candidatos DEMO y un borrador de Telegram que solo se copia, nunca se envía.
+
+Los cambios se guardan en `localStorage` de ese navegador; **no modifican automáticamente el sitio ni se sincronizan con otros dispositivos**. Exporta `offers.json`, revísalo y sustituye manualmente `src/data/offers.json` antes de volver a compilar. El estado `published` exige oferta verificada, URLs válidas y enlace afiliado completo. Las ofertas DEMO no se pueden editar, verificar ni publicar; el simulador muestra sus bloqueos expresamente.
 
 Las ofertas DEMO están protegidas contra edición directa y al duplicarlas se crea un borrador limpio, sin URL ni precios de ejemplo. El administrador muestra un mensaje informativo en producción y no incluye la lógica ni los datos de gestión.
 
@@ -95,6 +97,12 @@ Al conectar el repositorio en Cloudflare Pages, usa:
 - Variable de build `SITE_URL`: configura `https://la-oferta-del-chollo.pages.dev` en **Workers & Pages → tu proyecto → Settings → Variables and Secrets → Build variables**. No añadas rutas, parámetros ni barra final.
 
 Cloudflare instala las dependencias desde `package-lock.json`. El proyecto Pages tiene el dominio asignado y este build estático verificado se ha desplegado directamente con Wrangler. Aún no está conectado a un proveedor Git. Conecta GitHub y configura build `npm run build` y salida `dist`; tras añadir un dominio propio, actualiza `SITE_URL` al host canónico elegido y vuelve a desplegar. Las rutas ya son limpias y usan barra final, por ejemplo `https://la-oferta-del-chollo.pages.dev/ofertas/` (sin `.html`); canonical no incluye los parámetros de búsqueda.
+
+### GitHub y despliegues automáticos
+
+El repositorio existente es `https://github.com/laofertadelchollo-dev/la-oferta-del-chollo`, con rama de producción `main`. En Cloudflare abre **Workers & Pages → la-oferta-del-chollo → Settings → Builds & deployments → Connect to Git**, autoriza el acceso a ese repositorio, selecciona `main`, usa `npm run build` como comando y `dist` como directorio de salida. Configura `SITE_URL=https://la-oferta-del-chollo.pages.dev` en las variables de build. Esta conexión requiere autorización desde la cuenta de Cloudflare; Wrangler confirma que el proyecto todavía indica Git Provider `No`.
+
+El sitio es estático y no incluye un backend de ofertas. Los adaptadores de `src/lib/sources/` están preparados para normalizar datos importados de APIs o feeds oficiales; sus búsquedas fallan explícitamente hasta que se conecten fuentes autorizadas. La secuencia local está separada en scoring, verificación, creación, publicación e importación. No se implementa scraping ni ejecución automática.
 
 ## GitHub Actions
 

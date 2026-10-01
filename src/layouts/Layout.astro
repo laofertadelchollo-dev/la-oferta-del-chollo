@@ -31,6 +31,7 @@ const canonicalUrl = siteOrigin ? new URL(pageCanonical, `${siteOrigin}/`).toStr
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={pageDescription} />
     <meta property="og:locale" content={SITE.locale} />
+    {canonicalUrl && <meta property="og:url" content={canonicalUrl} />}
     {ogImage && <meta property="og:image" content={ogImage} />}
     {ogImage && <meta property="og:image:alt" content={SITE.name} />}
     <meta name="twitter:card" content="summary_large_image" />
