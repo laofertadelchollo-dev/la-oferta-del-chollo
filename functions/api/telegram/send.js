@@ -21,6 +21,10 @@ function isPublishableOffer(offer) {
 }
 
 export async function onRequestPost(context) {
+  if (context.env.ENVIRONMENT === 'production') {
+    return jsonResponse({ error: 'El envío a Telegram está desactivado temporalmente en producción.' }, 503);
+  }
+
   if (!hasTelegramConfiguration(context)) {
     return jsonResponse({ error: 'La publicación en Telegram no está configurada.' }, 503);
   }

@@ -29,7 +29,7 @@ Copia `.env.example` como `.env` para desarrollo local y completa solo los valor
 | `GOOGLE_SITE_VERIFICATION` | Valor de verificación que entrega Search Console; se añade como metaetiqueta solo si se proporciona. |
 | `ANALYTICS_ID` | ID de medición opcional. La etiqueta de analítica no se carga hasta que la persona visitante acepta el aviso. |
 | `AMAZON_AFFILIATE_ID`, `ALIEXPRESS_AFFILIATE_ID`, `AWIN_ID` | Referencias documentales; no generan enlaces ni se usan en el sitio estático. |
-| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Reservadas para una futura integración privada. No las usa esta versión ni deben ponerse en archivos públicos. |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Variables server-side para las Pages Functions de Telegram; nunca se incluyen en el frontend ni en archivos públicos. |
 
 No hay IDs de analítica, de afiliación o de Search Console preconfigurados. Los enlaces publicados se introducen en cada oferta y deben ser reales.
 
@@ -62,35 +62,38 @@ Abre `/admin/` mientras ejecutas `npm run dev`. Permite crear, editar, verificar
 
 Los cambios se guardan en `localStorage` de ese navegador; **no modifican automáticamente el sitio ni se sincronizan con otros dispositivos**. Exporta `offers.json`, revísalo y sustituye manualmente `src/data/offers.json` antes de volver a compilar. El estado `published` exige oferta verificada, URLs válidas y enlace afiliado completo. Las ofertas DEMO no se pueden editar, verificar ni publicar; el simulador muestra sus bloqueos expresamente.
 
-Las ofertas DEMO están protegidas contra edición directa y al duplicarlas se crea un borrador limpio, sin URL ni precios de ejemplo. Por defecto el build mantiene la administración desactivada; habilítala en Cloudflare solo después de proteger la ruta con Access.
+Las ofertas DEMO están protegidas contra edición directa y al duplicarlas se crea un borrador limpio, sin URL ni precios de ejemplo. Por defecto el build mantiene la administración desactivada; el panel local está disponible con `npm run dev`.
 
 ## Telegram
 
 El panel crea y copia un borrador. El envío es otra acción explícita: solo se habilita para una oferta publicada, verificada, no DEMO, vigente y con URL afiliada válida; abre una previsualización y solicita confirmación. La acción de prueba envía únicamente el texto fijo `PRUEBA DE TELEGRAM — LA OFERTA DEL CHOLLO`, nunca datos de una oferta ficticia.
 
-El servidor está implementado como Cloudflare Pages Functions en `functions/api/telegram/`. El token se lee exclusivamente desde `context.env` en código server-side. La función exige un JWT válido de Cloudflare Access, emite una cookie HttpOnly de cinco minutos firmada con `TELEGRAM_PUBLISH_SECRET` y valida origen, cuerpo y elegibilidad de la oferta antes de llamar a Telegram `sendMessage`. El navegador nunca recibe el token ni el secreto de publicación; los errores de Telegram solo registran HTTP status y código de error, y el cliente recibe un mensaje genérico.
+El servidor está implementado como Cloudflare Pages Functions en `functions/api/telegram/`. El token se lee exclusivamente desde `context.env` en código server-side. **Por ahora, ambas rutas de sesión y envío se desactivan en producción**: responden `503` antes de crear una sesión, validar credenciales o contactar con Telegram, incluso si los secretos siguen configurados. En desarrollo local se conserva la autenticación limitada a loopback, una cookie HttpOnly de cinco minutos firmada con `TELEGRAM_PUBLISH_SECRET`, validación de origen y cuerpo, y los controles de publicación de ofertas. El navegador nunca recibe el token ni el secreto de publicación.
 
 | Variable | Dónde | Uso |
 | --- | --- | --- |
 | `TELEGRAM_BOT_TOKEN` | Secret cifrado | Credencial del bot; solo Pages Functions. |
 | `TELEGRAM_CHAT_ID` | Variable server-side | Identificador numérico del canal de destino. |
 | `TELEGRAM_PUBLISH_SECRET` | Secret cifrado | Clave aleatoria de al menos 32 caracteres para firmar la sesión temporal. |
-| `CF_ACCESS_TEAM_DOMAIN` | Variable server-side | Origen HTTPS del equipo Cloudflare Access. |
-| `CF_ACCESS_AUD` | Variable server-side | AUD tag de la aplicación Access que protege el envío. |
-| `PUBLIC_ADMIN_PANEL` | Variable de build no secreta | Valor `true`; activar únicamente después de proteger `/admin*` y `/api/telegram/*` con Access. |
+| `CF_ACCESS_TEAM_DOMAIN` | Variable server-side | Reservada para reactivar la validación de Cloudflare Access en producción. |
+| `CF_ACCESS_AUD` | Variable server-side | Reservada para reactivar la validación de Cloudflare Access en producción. |
+| `PUBLIC_ADMIN_PANEL` | Variable de build no secreta | No habilita el panel en esta versión; `/admin/` solo se genera durante desarrollo local. |
 
 Para desarrollo, conserva los valores en `.env` (ignorado por Git) y copia manualmente las variables server-side a `.dev.vars` (también ignorado; plantilla `.dev.vars.example`). Nunca guardes credenciales en `wrangler.toml`, JavaScript del navegador, HTML, JSON o GitHub. Antes de compartir, confirma `git check-ignore .env .dev.vars` y verifica que ninguno figure en `git status` ni `git ls-files`.
 
+No elimines los secretos de Cloudflare: conservarlos no habilita el envío. Las Pages Functions los ignoran en producción mientras `ENVIRONMENT=production`; el código de validación con Access permanece intacto para reactivar el flujo cuando se complete la configuración de Zero Trust.
+
 ### Configuración de Cloudflare
 
-1. En **Workers & Pages → la-oferta-del-chollo → Settings → General**, usa **Enable access policy** para habilitar la integración de Pages con Access y abre **Manage** para la aplicación creada. Pages gestiona de forma especial el hostname `pages.dev`; no intentes añadir `pages.dev` como si fuera un dominio propio de una zona DNS.
-2. En **Zero Trust → Access → Applications**, configura aplicaciones con hostname exacto `la-oferta-del-chollo.pages.dev` y protege los paths `/admin*` y `/api/telegram/*` (si hace falta, crea una aplicación por path). Limita la política **Allow** a tu identidad autenticada. No protejas el hostname entero: la portada pública debe seguir accesible. La guía de Cloudflare documenta el flujo especial para `pages.dev` en [Enable Access on your `*.pages.dev` domain](https://developers.cloudflare.com/pages/platform/known-issues/#enable-access-on-your-pagesdev-domain) y el comportamiento de paths en [Application paths](https://developers.cloudflare.com/cloudflare-one/access-controls/policies/app-paths/).
-3. En los datos de cada aplicación copia su **AUD tag**. En Zero Trust identifica el dominio HTTPS de tu equipo (por ejemplo, el hostname `*.cloudflareaccess.com` que muestra el panel).
-4. En **Workers & Pages → la-oferta-del-chollo → Settings → Variables and Secrets**, añade `TELEGRAM_BOT_TOKEN` y `TELEGRAM_PUBLISH_SECRET` como **Encrypt / Secret**. Añade `TELEGRAM_CHAT_ID`, `CF_ACCESS_TEAM_DOMAIN` y `CF_ACCESS_AUD` como variables server-side normales, sin prefijo `PUBLIC_`.
-5. En variables de build configura `PUBLIC_ADMIN_PANEL=true`, `SITE_URL=https://la-oferta-del-chollo.pages.dev` y Node 22. Mantén build `npm run build` y salida `dist`.
-6. Después de desplegar, inicia sesión en Access al abrir `/admin/`. Usa **Enviar prueba DEMO a Telegram** para un test manual; no se envía nada al cargar la página. Cada oferta real requiere su propia previsualización y confirmación.
+1. **Actualmente omitido:** no se requiere ni está habilitado Cloudflare Access para el lanzamiento inicial. Las Pages Functions responden con envío desactivado en producción.
+2. Cuando decidas reactivar el envío, en **Workers & Pages → la-oferta-del-chollo → Settings → General**, usa **Enable access policy** para habilitar la integración de Pages con Access y abre **Manage** para la aplicación creada. Pages gestiona de forma especial el hostname `pages.dev`; no intentes añadir `pages.dev` como si fuera un dominio propio de una zona DNS.
+3. En **Zero Trust → Access → Applications**, configura aplicaciones con hostname exacto `la-oferta-del-chollo.pages.dev` y protege los paths `/admin*` y `/api/telegram/*` (si hace falta, crea una aplicación por path). Limita la política **Allow** a tu identidad autenticada. No protejas el hostname entero: la portada pública debe seguir accesible. La guía de Cloudflare documenta el flujo especial para `pages.dev` en [Enable Access on your `*.pages.dev` domain](https://developers.cloudflare.com/pages/platform/known-issues/#enable-access-on-your-pagesdev-domain) y el comportamiento de paths en [Application paths](https://developers.cloudflare.com/cloudflare-one/access-controls/policies/app-paths/).
+4. En los datos de cada aplicación copia su **AUD tag**. En Zero Trust identifica el dominio HTTPS de tu equipo (por ejemplo, el hostname `*.cloudflareaccess.com` que muestra el panel).
+5. Conserva `TELEGRAM_BOT_TOKEN` y `TELEGRAM_PUBLISH_SECRET` como **Encrypt / Secret**. Conserva `TELEGRAM_CHAT_ID` como variable server-side y añade `CF_ACCESS_TEAM_DOMAIN` y `CF_ACCESS_AUD` cuando Access esté listo.
+6. Tras configurar Access, habrá que reactivar explícitamente el panel de producción y las rutas quitando el cierre temporal, proteger `/admin*` y `/api/telegram/*`, y solo entonces permitir el envío. No se debe reactivar nada antes de comprobar esas protecciones. Mantén `SITE_URL=https://la-oferta-del-chollo.pages.dev`, Node 22, build `npm run build` y salida `dist`.
+7. Con Access ya protegido y la nueva versión desplegada, inicia sesión al abrir `/admin/`. Usa **Enviar prueba DEMO a Telegram** solo para un test manual; no se envía nada al cargar la página. Cada oferta real requiere su propia previsualización y confirmación.
 
-Para ejecutar Pages Functions en local, copia `.dev.vars.example` a `.dev.vars` y rellena allí las variables de desarrollo. Compila con `PUBLIC_ADMIN_PANEL=true` y ejecuta `npx wrangler pages dev dist --ip 127.0.0.1`. El bypass de Access del endpoint solo se admite en `localhost`/loopback con `ENVIRONMENT=development`; una oferta real sigue sometida a las mismas reglas de publicación.
+Para ejecutar Pages Functions en local, copia `.dev.vars.example` a `.dev.vars` y rellena allí las variables de desarrollo. Compila con `PUBLIC_ADMIN_PANEL=true` y ejecuta `npx wrangler pages dev dist --ip 127.0.0.1`; configura `ENVIRONMENT=development`. El envío solo se habilita en `localhost`/loopback. Una oferta real sigue sometida a las mismas reglas de publicación y requiere previsualización y confirmación explícitas.
 
 ## SEO y Google Search Console
 

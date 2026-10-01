@@ -1,7 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { CATEGORIES } from '../lib/site';
-const isAdminEnabled = import.meta.env.DEV || import.meta.env.PUBLIC_ADMIN_PANEL === 'true';
+const isAdminEnabled = import.meta.env.DEV;
 ---
 
 <Layout title="Administración local" description="Herramienta local para preparar ofertas y exportar el catálogo." noIndex={true}>

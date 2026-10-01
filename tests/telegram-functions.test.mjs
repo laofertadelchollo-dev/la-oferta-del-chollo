@@ -45,6 +45,43 @@ test('session endpoint creates a short-lived HttpOnly cookie only with configure
   assert.equal(unconfigured.status, 503);
 });
 
+test('production session and send endpoints are disabled before creating sessions or contacting Telegram', async (t) => {
+  const originalFetch = globalThis.fetch;
+  let fetchCount = 0;
+  globalThis.fetch = async () => {
+    fetchCount += 1;
+    return Response.json({ ok: true });
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const productionContext = (path, options = {}) => ({
+    ...localContext(path, options),
+    request: new Request(`https://la-oferta-del-chollo.pages.dev${path}`, {
+      method: options.method || 'GET',
+      headers: {
+        ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(options.headers || {})
+      },
+      ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {})
+    }),
+    env: { ...testEnv, ENVIRONMENT: 'production' }
+  });
+
+  const sessionResponse = await onRequestGet(productionContext('/api/telegram/session'));
+  assert.equal(sessionResponse.status, 503);
+  assert.equal(sessionResponse.headers.has('Set-Cookie'), false);
+
+  const sendResponse = await onRequestPost(productionContext('/api/telegram/send', {
+    method: 'POST',
+    body: { action: 'test' }
+  }));
+  assert.equal(sendResponse.status, 503);
+  assert.deepEqual(await sendResponse.json(), {
+    error: 'El envío a Telegram está desactivado temporalmente en producción.'
+  });
+  assert.equal(fetchCount, 0);
+});
+
 test('send endpoint accepts only explicit demo test action and relays server-side credentials', async (t) => {
   const cookie = await sessionCookie();
   const originalFetch = globalThis.fetch;
