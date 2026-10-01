@@ -1,0 +1,134 @@
+---
+import Layout from '../layouts/Layout.astro';
+import OfferCard from '../components/OfferCard.astro';
+import GuideCard from '../components/GuideCard.astro';
+import CategoryCard from '../components/CategoryCard.astro';
+import { offers } from '../data/offers';
+import { guides } from '../data/guides';
+import { CATEGORIES, SITE, isOfferVisible } from '../lib/site';
+
+const publicAndDevOffers = offers.filter((offer) => isOfferVisible(offer, import.meta.env.DEV));
+const featuredOffers = publicAndDevOffers.filter((offer) => offer.featured).slice(0, 3);
+const latestOffers = [...publicAndDevOffers].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)).slice(0, 4);
+const availableGuides = guides.slice(0, 3);
+---
+
+<Layout title="Ofertas y recomendaciones" description="Descubre las mejores ofertas en España con análisis claro y recomendaciones útiles para ahorrar sin complicaciones.">
+  <section class="hero-brand-banner">
+    <div class="container hero-brand-wrap">
+      <img src="/images/la-oferta-del-chollo.png" alt="Banner de LA OFERTA DEL CHOLLO: compra artículos con grandes descuentos" class="hero-brand-image" fetchpriority="high" />
+    </div>
+  </section>
+
+  <section class="hero-section">
+    <div class="container hero-grid">
+      <div>
+        <span class="eyebrow">Portal de ofertas</span>
+        <h1>Las ofertas que realmente merecen la pena</h1>
+        <p>Recomendaciones útiles, comparación de precios y ofertas verificadas para gastar mejor en productos que realmente te sirven.</p>
+        <div class="hero-actions">
+          <a href="/ofertas/" class="primary-btn">Ver ofertas</a>
+          <a href="/guias/" class="secondary-btn">Leer guías</a>
+        </div>
+      </div>
+      <div class="hero-panel">
+        <div class="score-box">
+          <strong>Con criterio</strong>
+          <span>Información clara para decidir</span>
+        </div>
+        <ul>
+          <li>Ofertas revisadas</li>
+          <li>Precio y descuento claros</li>
+          <li>Sin ruido ni promociones engañosas</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-header">
+        <div>
+          <span class="eyebrow">Destacadas</span>
+          <h2>Ofertas destacadas</h2>
+        </div>
+        <a href="/ofertas/" class="secondary-btn">Ver todas</a>
+      </div>
+      <div class="offer-grid three-up">
+        {featuredOffers.length
+          ? featuredOffers.map((offer) => <OfferCard offer={offer} />)
+          : <p class="empty-state">Estamos preparando las primeras ofertas verificadas.</p>}
+      </div>
+    </div>
+  </section>
+
+  <section class="section alt-section">
+    <div class="container">
+      <div class="section-header">
+        <div>
+          <span class="eyebrow">Últimas</span>
+          <h2>Últimas ofertas</h2>
+        </div>
+      </div>
+      <div class="offer-grid four-up">
+        {latestOffers.length
+          ? latestOffers.map((offer) => <OfferCard offer={offer} />)
+          : <p class="empty-state">Cuando haya ofertas verificadas, aparecerán aquí.</p>}
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-header">
+        <div>
+          <span class="eyebrow">Categorías</span>
+          <h2>Descubre por tipo de producto</h2>
+        </div>
+      </div>
+      <div class="category-grid">
+        {CATEGORIES.map((category) => (
+          <CategoryCard title={category.label} href={`/${category.slug}/`} description={category.description} emoji={category.emoji} />
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section alt-section">
+    <div class="container">
+      <div class="section-header">
+        <div>
+          <span class="eyebrow">Guías</span>
+          <h2>Guías y recomendaciones</h2>
+        </div>
+        <a href="/guias/" class="secondary-btn">Ver todas</a>
+      </div>
+      <div class="guide-grid">
+        {availableGuides.map((guide) => <GuideCard guide={guide} />)}
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container content-grid">
+      <div>
+        <span class="eyebrow">Cómo seleccionamos</span>
+        <h2>Elegimos ofertas con criterio, no con ruido</h2>
+        <p>Antes de publicar una promoción revisamos si el ahorro es real, si el producto tiene utilidad y si la tienda ofrece condiciones claras. Nuestro enfoque combina análisis de precio, prioridad a productos útiles y transparencia con el usuario.</p>
+      </div>
+      <div class="mini-list">
+        <div><strong>01.</strong> Revisamos el precio y la referencia.</div>
+        <div><strong>02.</strong> Valoramos la utilidad del producto.</div>
+        <div><strong>03.</strong> Indicamos condiciones y afiliación.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section alt-section">
+    <div class="container narrow-content">
+      <h2>Transparencia y afiliación</h2>
+      <p>{SITE.affiliateDisclosure}</p>
+      <a href="/afiliados/" class="secondary-btn">Más información</a>
+    </div>
+  </section>
+</Layout>

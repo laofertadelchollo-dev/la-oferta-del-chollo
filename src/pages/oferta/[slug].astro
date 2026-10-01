@@ -1,0 +1,128 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import OfferNotice from '../../components/OfferNotice.astro';
+import { offers } from '../../data/offers';
+import { formatMoney, generateTelegramPost, getOfferDiscount, getOfferOutboundUrl, getOfferState, getOfferStatusLabel, getSafeAffiliateUrl, isOfferVisible } from '../../lib/site';
+
+export function getStaticPaths() {
+  return offers
+    .filter((offer) => isOfferVisible(offer, import.meta.env.DEV))
+    .map((offer) => ({ params: { slug: offer.slug } }));
+}
+
+const { slug } = Astro.params;
+const offer = offers.find((item) => item.slug === slug);
+if (!offer) {
+  throw new Error('Oferta no encontrada');
+}
+
+const status = getOfferState(offer);
+const safeAffiliateUrl = getSafeAffiliateUrl(offer.affiliateUrl);
+const outboundUrl = getOfferOutboundUrl(offer);
+const discount = getOfferDiscount(offer);
+const telegramText = generateTelegramPost(offer);
+const publishedDate = offer.publishedAt
+  ? new Intl.DateTimeFormat('es-ES', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${offer.publishedAt.slice(0, 10)}T00:00:00Z`))
+  : undefined;
+const productSchema = !offer.demo && offer.verified && outboundUrl ? {
+  '@context': 'https://schema.org',
+  '@type': 'Product',
+  name: offer.title,
+  description: offer.shortDescription,
+  ...(offer.image && Astro.site ? { image: new URL(offer.image, Astro.site).toString() } : {}),
+  offers: {
+    '@type': 'Offer',
+    price: offer.currentPrice.toFixed(2),
+    priceCurrency: 'EUR',
+    ...(Astro.site ? { url: new URL(`/oferta/${offer.slug}/`, Astro.site).toString() } : {}),
+    ...(offer.expiresAt ? { priceValidUntil: offer.expiresAt } : {})
+  }
+} : undefined;
+---
+
+<Layout title={offer.title} description={offer.shortDescription} canonical={`/oferta/${offer.slug}/`} image={offer.image}>
+  {productSchema && <script type="application/ld+json" set:html={JSON.stringify(productSchema).replace(/</g, '\\u003c')} />}
+  <section class="section detail-hero">
+    <div class="container detail-layout">
+      <div class="detail-image-wrap">
+        {offer.image
+          ? <img src={offer.image} alt={offer.title} loading="eager" />
+          : <div class="offer-image-placeholder detail-image-placeholder" aria-label="Imagen no disponible">Imagen no disponible</div>}
+      </div>
+
+      <div class="detail-content">
+        <div class="offer-meta">
+          <span class="offer-category">{offer.category}</span>
+          <span class={`state-badge ${status}`}>{getOfferStatusLabel(status)}</span>
+        </div>
+
+        <h1>{offer.title}</h1>
+
+        <div class="detail-pricing">
+          <div class="price-current">{formatMoney(offer.currentPrice)}</div>
+          {offer.previousPriceVerified && offer.previousPrice && <div class="price-old">{formatMoney(offer.previousPrice)}</div>}
+          {discount > 0 && <div class="discount-pill">-{discount}%</div>}
+        </div>
+
+        <div class="detail-tags">
+          {offer.coupon && <span class="coupon-box">Cupón: {offer.coupon}</span>}
+          {offer.demo && <span class="demo-box">DEMO · datos ficticios solo para desarrollo</span>}
+        </div>
+
+        <p class="lead">{offer.shortDescription}</p>
+
+        <div class="detail-actions">
+          {outboundUrl
+            ? <a href={outboundUrl} class="primary-btn" target="_blank" rel={`noopener noreferrer${safeAffiliateUrl ? ' sponsored nofollow' : ''}`}>Ver oferta</a>
+            : <span class="muted-text">Añade un enlace válido antes de publicar.</span>}
+          <button class="secondary-btn copy-telegram" type="button" data-copy-text={telegramText}>Copiar texto para Telegram</button>
+        </div>
+
+        <p class="affiliate-note">{safeAffiliateUrl ? 'Este enlace es de afiliación. Si compras a través de él, podríamos recibir una comisión sin coste adicional para ti.' : 'No se ha indicado un enlace de afiliación para esta oferta.'}</p>
+        <OfferNotice offer={offer} />
+      </div>
+    </div>
+  </section>
+
+  <section class="section alt-section">
+    <div class="container detail-grid">
+      <article>
+        <h2>Descripción editorial</h2>
+        <p>{offer.description}</p>
+        <h3>¿Por qué puede interesar?</h3>
+        <ul class="check-list">
+          <li>{offer.previousPriceVerified ? 'La referencia de precio anterior se ha marcado como comprobada.' : 'No se muestra una rebaja porcentual porque no hay un precio anterior marcado como comprobado.'}</li>
+          <li>Compara la información disponible para decidir si encaja en tus necesidades.</li>
+          <li>Las condiciones y la afiliación se muestran de forma transparente.</li>
+        </ul>
+      </article>
+
+      <aside class="info-box">
+        <h3>Información de la tienda</h3>
+        <p><strong>Tienda:</strong> {offer.store}</p>
+        {offer.seller && <p><strong>Vendedor:</strong> {offer.seller}</p>}
+        {offer.conditions && <p><strong>Condición:</strong> {offer.conditions}</p>}
+        {publishedDate && <p><strong>Publicado:</strong> {publishedDate}</p>}
+        {offer.expiresAt && <p><strong>Caduca:</strong> {offer.expiresAt}</p>}
+        <p><strong>Estado:</strong> {getOfferStatusLabel(status)}</p>
+        {offer.lastVerifiedAt && <p><strong>Última comprobación:</strong> {offer.lastVerifiedAt}</p>}
+      </aside>
+    </div>
+  </section>
+
+  <script>
+    const btn = document.querySelector<HTMLButtonElement>('.copy-telegram');
+    btn?.addEventListener('click', async () => {
+      const text = btn.getAttribute('data-copy-text');
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        const oldValue = btn.textContent;
+        btn.textContent = 'Texto copiado';
+        setTimeout(() => { btn.textContent = oldValue; }, 1800);
+      } catch {
+        btn.textContent = 'No se pudo copiar';
+      }
+    });
+  </script>
+</Layout>

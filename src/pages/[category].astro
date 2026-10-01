@@ -1,0 +1,32 @@
+---
+import Layout from '../layouts/Layout.astro';
+import OfferCard from '../components/OfferCard.astro';
+import { offers } from '../data/offers';
+import { CATEGORIES, getCategoryInfo, isOfferVisible } from '../lib/site';
+
+export function getStaticPaths() {
+  return CATEGORIES.map((category) => ({ params: { category: category.slug } }));
+}
+
+const { category } = Astro.params;
+const categoryInfo = getCategoryInfo(category || '');
+const items = offers.filter((offer) => offer.category === category && isOfferVisible(offer, import.meta.env.DEV));
+---
+
+<Layout title={categoryInfo ? categoryInfo.label : 'Categoría'} description={categoryInfo ? categoryInfo.description : 'Listado de ofertas por categoría.'}>
+  <section class="section narrow-section">
+    <div class="container">
+      <span class="eyebrow">Categoría</span>
+      <h1>{categoryInfo ? `${categoryInfo.emoji} ${categoryInfo.label}` : 'Categoría no encontrada'}</h1>
+      <p>{categoryInfo ? categoryInfo.description : 'La categoría seleccionada no existe o no tiene ofertas activas.'}</p>
+    </div>
+  </section>
+
+  <section class="section alt-section">
+    <div class="container">
+      <div class="offer-grid four-up">
+        {items.length > 0 ? items.map((offer) => <OfferCard offer={offer} />) : <p class="empty-state">Todavía no hay ofertas activas en esta categoría.</p>}
+      </div>
+    </div>
+  </section>
+</Layout>

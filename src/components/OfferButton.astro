@@ -1,0 +1,4 @@
+---
+const { href, label = 'Ver oferta', primary = true } = Astro.props;
+---
+<a href={href} class={primary ? 'primary-btn' : 'secondary-btn'}>{label}</a>

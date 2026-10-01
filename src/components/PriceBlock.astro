@@ -1,0 +1,9 @@
+---
+import { formatMoney } from '../lib/site';
+const { currentPrice, previousPrice } = Astro.props;
+---
+
+<div class="price-block">
+  <span class="current-price">{formatMoney(currentPrice)}</span>
+  {previousPrice && <span class="previous-price">{formatMoney(previousPrice)}</span>}
+</div>

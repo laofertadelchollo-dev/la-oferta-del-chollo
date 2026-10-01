@@ -1,0 +1,18 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { SITE } from '../lib/site';
+---
+
+<Layout title="Aviso legal" description="Información legal del portal, titularidad pendiente de completar y condiciones generales de uso.">
+  <section class="section narrow-section">
+    <div class="container prose-box">
+      <span class="eyebrow">Legal</span>
+      <h1>Aviso legal</h1>
+      <p><strong>Titular:</strong> {SITE.contact.name}. <strong>Correo:</strong> {SITE.contact.email}. <strong>Domicilio:</strong> {SITE.contact.address}.</p>
+      <p>Completa estos datos antes de publicar el sitio. Los campos entre corchetes son placeholders y no identifican a una persona ni a una empresa.</p>
+      <p>{SITE.name} es un portal editorial de ofertas y recomendaciones. La información se ofrece con carácter general y no sustituye la ficha, las condiciones ni la información oficial de la tienda o del fabricante.</p>
+      <p>Los precios, condiciones y disponibilidad pueden variar sin previo aviso. Comprueba el importe final y las condiciones de compra en la tienda antes de realizar un pedido.</p>
+      <p>{SITE.affiliateDisclosure}</p>
+    </div>
+  </section>
+</Layout>

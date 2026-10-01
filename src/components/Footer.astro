@@ -1,0 +1,39 @@
+---
+import { SITE } from '../lib/site';
+---
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div>
+      <h3>{SITE.name}</h3>
+      <p>Portal editorial de ofertas y recomendaciones para ahorrar en productos útiles y sin complicaciones.</p>
+    </div>
+    <div>
+      <h4>Explorar</h4>
+      <div class="footer-links">
+        <a href="/ofertas/">Ofertas</a>
+        <a href="/guias/">Guías</a>
+        <a href="/sobre-nosotros/">Sobre nosotros</a>
+      </div>
+    </div>
+    <div>
+      <h4>Categorías</h4>
+      <div class="footer-links">
+        <a href="/tecnologia/">Tecnología</a>
+        <a href="/hogar/">Hogar</a>
+        <a href="/cocina/">Cocina</a>
+      </div>
+    </div>
+    <div>
+      <h4>Legal</h4>
+      <div class="footer-links">
+        <a href="/privacidad/">Privacidad</a>
+        <a href="/aviso-legal/">Aviso legal</a>
+        <a href="/afiliados/">Afiliados</a>
+        <a href="/contacto/">Contacto</a>
+      </div>
+    </div>
+  </div>
+  <div class="container footer-note">
+    {SITE.affiliateDisclosure}
+  </div>
+</footer>

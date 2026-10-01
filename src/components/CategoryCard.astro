@@ -1,0 +1,8 @@
+---
+const { title, href, description, emoji } = Astro.props;
+---
+<a class="category-card" href={href}>
+  <span class="category-emoji" aria-hidden="true">{emoji}</span>
+  <h3>{title}</h3>
+  <p>{description}</p>
+</a>

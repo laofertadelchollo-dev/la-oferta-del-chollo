@@ -1,0 +1,57 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { guides } from '../../data/guides';
+import { SITE } from '../../lib/site';
+
+export function getStaticPaths() {
+  return guides.map((guide) => ({ params: { slug: guide.slug } }));
+}
+
+const { slug } = Astro.params;
+const guide = guides.find((item) => item.slug === slug);
+if (!guide) {
+  throw new Error('Guía no encontrada');
+}
+
+const articleSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: guide.title,
+  description: guide.metaDescription,
+  datePublished: guide.publishedAt,
+  ...(Astro.site ? { image: new URL(guide.image, Astro.site).toString() } : {}),
+  mainEntityOfPage: Astro.site ? new URL(`/guia/${guide.slug}/`, Astro.site).toString() : undefined,
+  author: { '@type': 'Organization', name: SITE.name },
+  publisher: { '@type': 'Organization', name: SITE.name }
+};
+---
+
+<Layout title={guide.seoTitle} description={guide.metaDescription} canonical={`/guia/${guide.slug}/`} image={guide.image}>
+  <script type="application/ld+json" set:html={JSON.stringify(articleSchema).replace(/</g, '\\u003c')} />
+  <section class="section narrow-section">
+    <div class="container article-shell">
+      <p class="eyebrow">Guía editorial · <time datetime={guide.publishedAt}>{guide.publishedAt}</time></p>
+      <h1>{guide.title}</h1>
+      <p class="lead">{guide.introduction}</p>
+      <img src={guide.image} alt={guide.title} class="article-image" loading="lazy" />
+      <div class="article-body">
+        {guide.sections.map((section) => (
+          <section>
+            <h2>{section.heading}</h2>
+            {section.paragraphs.map((paragraph) => <p>{paragraph}</p>)}
+          </section>
+        ))}
+        <section>
+          <h2>Consejos prácticos</h2>
+          <ul class="check-list">
+            {guide.practicalTips.map((tip) => <li>{tip}</li>)}
+          </ul>
+        </section>
+        <section>
+          <h2>En resumen</h2>
+          <p>{guide.conclusion}</p>
+        </section>
+      </div>
+    </div>
+  </section>
+</Layout>

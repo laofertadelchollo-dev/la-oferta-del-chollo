@@ -1,0 +1,15 @@
+---
+import type { Offer } from '../lib/site';
+
+const { offer }: { offer: Offer } = Astro.props;
+const expiryLabel = offer.expiresAt
+  ? new Intl.DateTimeFormat('es-ES', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${offer.expiresAt}T00:00:00Z`))
+  : undefined;
+---
+
+<aside class="offer-notice" aria-label="Aviso sobre precio y condiciones">
+  <p>El precio y la disponibilidad pueden cambiar. Comprueba las condiciones en la tienda antes de comprar.</p>
+  {offer.coupon && <p>El cupón puede tener condiciones o restricciones; confirma su aplicación antes de pagar.</p>}
+  {expiryLabel && <p>La oferta indica como fecha de finalización el {expiryLabel}; puede terminar antes si cambian las condiciones.</p>}
+  {offer.conditions && <p><strong>Condiciones indicadas:</strong> {offer.conditions}</p>}
+</aside>

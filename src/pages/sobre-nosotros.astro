@@ -1,0 +1,16 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { SITE } from '../lib/site';
+---
+
+<Layout title="Sobre nosotros" description="Conoce el enfoque editorial de LA OFERTA DEL CHOLLO para revisar ofertas y ayudar a comprar con criterio.">
+  <section class="section narrow-section">
+    <div class="container prose-box">
+      <span class="eyebrow">Quiénes somos</span>
+      <h1>Sobre {SITE.name}</h1>
+      <p>{SITE.name} es un portal editorial para revisar ofertas, comparar la información disponible y ayudar a decidir con criterio antes de comprar. El objetivo es aportar contexto, no empujar a una compra por impulso.</p>
+      <p>Las ofertas publicadas deben estar verificadas, describir sus condiciones y distinguir una referencia de precio comprobada de un dato que no lo esté.</p>
+      <p>El proyecto empieza con una gestión editorial manual. Cualquier automatización futura deberá utilizar fuentes autorizadas y respetar las condiciones de cada plataforma.</p>
+    </div>
+  </section>
+</Layout>

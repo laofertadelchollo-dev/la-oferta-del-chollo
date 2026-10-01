@@ -1,0 +1,101 @@
+---
+import '../styles/global.css';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { SITE } from '../lib/site';
+const { title, description, canonical, image, noIndex = false } = Astro.props;
+const pageTitle = title ? `${title} | ${SITE.name}` : SITE.name;
+const pageDescription = description || SITE.description;
+const pageCanonical = canonical || Astro.url.pathname;
+const siteOrigin = Astro.site?.origin;
+const rawImage = image || SITE.defaultImage;
+const ogImage = rawImage?.startsWith('http')
+  ? rawImage
+  : siteOrigin && rawImage
+    ? new URL(rawImage, `${siteOrigin}/`).toString()
+    : undefined;
+const analyticsId = import.meta.env.PUBLIC_ANALYTICS_ID;
+const googleVerification = import.meta.env.PUBLIC_GOOGLE_SITE_VERIFICATION;
+const canonicalUrl = siteOrigin ? new URL(pageCanonical, `${siteOrigin}/`).toString() : undefined;
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="description" content={pageDescription} />
+    <meta name="robots" content={noIndex ? 'noindex,nofollow' : 'index,follow'} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE.name} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={pageDescription} />
+    <meta property="og:locale" content={SITE.locale} />
+    {ogImage && <meta property="og:image" content={ogImage} />}
+    {ogImage && <meta property="og:image:alt" content={SITE.name} />}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={pageDescription} />
+    {ogImage && <meta name="twitter:image" content={ogImage} />}
+    {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
+    {googleVerification && <meta name="google-site-verification" content={googleVerification} />}
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>{pageTitle}</title>
+    {analyticsId && (
+      <script is:inline define:vars={{ analyticsId }}>
+        const consentKey = 'lodc-analytics-consent';
+        const loadAnalytics = () => {
+          if (window.__lodcAnalyticsLoaded) return;
+          window.__lodcAnalyticsLoaded = true;
+          window.dataLayer = window.dataLayer || [];
+          window.gtag = function () { window.dataLayer.push(arguments); };
+          window.gtag('js', new Date());
+          window.gtag('config', analyticsId);
+          const script = document.createElement('script');
+          script.async = true;
+          script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(analyticsId)}`;
+          document.head.append(script);
+        };
+        try {
+          if (localStorage.getItem(consentKey) === 'accepted') loadAnalytics();
+          else if (!localStorage.getItem(consentKey)) {
+            document.addEventListener('DOMContentLoaded', () => {
+              const notice = document.querySelector('[data-analytics-notice]');
+              notice?.removeAttribute('hidden');
+            });
+          }
+        } catch (error) {
+          console.error('No se pudo leer el consentimiento de analítica.', error);
+        }
+        document.addEventListener('click', (event) => {
+          const button = event.target instanceof Element ? event.target.closest('[data-analytics-choice]') : null;
+          if (!button) return;
+          try {
+            const choice = button.getAttribute('data-analytics-choice');
+            localStorage.setItem(consentKey, choice);
+            document.querySelector('[data-analytics-notice]')?.setAttribute('hidden', '');
+            if (choice === 'accepted') loadAnalytics();
+          } catch (error) {
+            console.error('No se pudo guardar el consentimiento de analítica.', error);
+          }
+        });
+      </script>
+    )}
+  </head>
+  <body>
+    <Header />
+    <main class="page-shell">
+      <slot />
+    </main>
+    {analyticsId && (
+      <aside class="analytics-notice" data-analytics-notice hidden aria-label="Preferencias de analítica">
+        <p>Podemos usar analítica para entender el uso de la web. Solo se activará si la aceptas. Consulta la <a href="/privacidad/">política de privacidad</a>.</p>
+        <div>
+          <button type="button" class="secondary-btn" data-analytics-choice="rejected">Rechazar</button>
+          <button type="button" class="primary-btn" data-analytics-choice="accepted">Aceptar</button>
+        </div>
+      </aside>
+    )}
+    <Footer />
+  </body>
+</html>

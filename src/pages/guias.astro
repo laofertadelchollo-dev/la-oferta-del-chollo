@@ -1,0 +1,21 @@
+---
+import Layout from '../layouts/Layout.astro';
+import GuideCard from '../components/GuideCard.astro';
+import { guides } from '../data/guides';
+---
+
+<Layout title="Guías" description="Guías y recomendaciones originales para comprar mejor y ahorrar con criterio.">
+  <section class="section narrow-section">
+    <div class="container">
+      <span class="eyebrow">Editorial</span>
+      <h1>Guías y recomendaciones</h1>
+      <p>Artículos originales para entender mejor qué compra merece la pena y cómo evitar falsas promociones.</p>
+    </div>
+  </section>
+
+  <section class="section alt-section">
+    <div class="container guide-grid">
+      {guides.map((guide) => <GuideCard guide={guide} />)}
+    </div>
+  </section>
+</Layout>

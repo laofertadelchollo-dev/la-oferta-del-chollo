@@ -1,0 +1,169 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { CATEGORIES } from '../lib/site';
+const isDevelopment = import.meta.env.DEV;
+---
+
+<Layout title="Administración local" description="Herramienta local para preparar ofertas y exportar el catálogo." noIndex={true}>
+  {isDevelopment ? (
+  <section class="section narrow-section">
+    <div class="container admin-shell">
+      <span class="eyebrow">Herramienta local</span>
+      <h1>Panel de ofertas</h1>
+      <div class="admin-local-warning" role="note">
+        <strong>Solo para este navegador.</strong> Los cambios se guardan en el almacenamiento local de este dispositivo, no en la web publicada ni en un servidor. Exporta el JSON y actualiza <code>src/data/offers.json</code> para publicar cambios. No introduzcas secretos.
+      </div>
+      <p id="admin-status" class="admin-status" role="status" aria-live="polite"></p>
+
+      <div class="admin-toolbar">
+        <button type="button" id="new-offer" class="primary-btn">Crear oferta</button>
+        <button type="button" id="export-offers" class="secondary-btn">Exportar offers.json</button>
+        <label class="secondary-btn file-button">
+          Importar JSON
+          <input type="file" id="import-offers" accept="application/json,.json" />
+        </label>
+        <button type="button" id="reset-offers" class="secondary-btn">Restablecer ejemplos</button>
+      </div>
+
+      <div class="admin-grid admin-workspace">
+        <form class="admin-form" id="offer-form" novalidate>
+          <input type="hidden" id="offer-id" />
+          <h2 id="form-heading">Nueva oferta</h2>
+          <label>
+            <span>Slug (URL limpia)</span>
+            <input type="text" id="slug" maxlength="180" />
+          </label>
+          <button type="button" id="generate-slug" class="secondary-btn">Generar slug desde el título</button>
+          <label>
+            <span>Producto *</span>
+            <input type="text" id="title" maxlength="180" required />
+          </label>
+          <label>
+            <span>Tienda *</span>
+            <select id="store-select">
+              <option value="">Selecciona una tienda</option>
+              <option value="Amazon España">Amazon España</option>
+              <option value="AliExpress">AliExpress</option>
+              <option value="other">Otra tienda</option>
+            </select>
+            <input type="text" id="store-custom" maxlength="100" placeholder="Nombre exacto de la tienda" hidden />
+          </label>
+          <label>
+            <span>Vendedor (si se conoce)</span>
+            <input type="text" id="seller" maxlength="120" />
+          </label>
+          <label>
+            <span>Categoría *</span>
+            <select id="category" required>
+              <option value="">Elige una categoría</option>
+              {CATEGORIES.map((category) => <option value={category.slug}>{category.label}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Imagen (ruta local o URL https)</span>
+            <input type="text" id="image" maxlength="500" placeholder="/images/mi-producto.webp" />
+          </label>
+          <label>
+            <span>Precio actual (€) *</span>
+            <input type="number" id="current-price" min="0.01" step="0.01" required />
+          </label>
+          <label>
+            <span>Precio anterior (€)</span>
+            <input type="number" id="previous-price" min="0.01" step="0.01" />
+          </label>
+          <label class="checkbox-row">
+            <input type="checkbox" id="previous-price-verified" />
+            <span>He comprobado que el precio anterior es una referencia fiable</span>
+          </label>
+          <p class="muted-text">El descuento se calcula y muestra únicamente con un precio anterior marcado como comprobado y superior al actual.</p>
+          <label>
+            <span>Cupón</span>
+            <input type="text" id="coupon" maxlength="80" />
+          </label>
+          <label>
+            <span>Condiciones (envío, límites o requisitos)</span>
+            <textarea id="conditions" rows="3" maxlength="500"></textarea>
+          </label>
+          <label>
+            <span>Resumen original *</span>
+            <textarea id="short-description" rows="3" maxlength="280" required></textarea>
+          </label>
+          <label>
+            <span>Descripción editorial original *</span>
+            <textarea id="description" rows="6" maxlength="3000" required></textarea>
+          </label>
+          <label>
+            <span>URL de la oferta *</span>
+            <input type="url" id="source-url" placeholder="https://..." maxlength="2000" required />
+          </label>
+          <label>
+            <span>URL afiliada (opcional)</span>
+            <input type="url" id="affiliate-url" placeholder="https://..." maxlength="2000" />
+          </label>
+          <label>
+            <span>Fecha de publicación (opcional)</span>
+            <input type="date" id="published-at" />
+          </label>
+          <label>
+            <span>Fecha de caducidad (opcional)</span>
+            <input type="date" id="expires-at" />
+          </label>
+          <label>
+            <span>Estado editorial</span>
+            <select id="status">
+              <option value="draft">Borrador</option>
+              <option value="verified">Verificada (visible)</option>
+              <option value="published">Publicada</option>
+              <option value="expired">Expirada</option>
+            </select>
+          </label>
+          <label class="checkbox-row">
+            <input type="checkbox" id="verified" />
+            <span>He comprobado ahora precio, enlace y condiciones</span>
+          </label>
+          <label class="checkbox-row">
+            <input type="checkbox" id="featured" />
+            <span>Destacar en portada</span>
+          </label>
+          <label>
+            <span>Etiquetas separadas por comas</span>
+            <input type="text" id="tags" maxlength="300" />
+          </label>
+          <div class="admin-actions">
+            <button type="submit" class="primary-btn">Guardar oferta</button>
+            <button type="button" id="cancel-edit" class="secondary-btn">Limpiar formulario</button>
+          </div>
+        </form>
+
+        <aside class="telegram-panel">
+          <h2>Borrador para Telegram</h2>
+          <p>El borrador usa solo los datos del formulario. No se publica ni se envía a Telegram.</p>
+          <textarea id="telegram-output" rows="14" readonly aria-label="Texto de Telegram generado"></textarea>
+          <button type="button" id="copy-telegram" class="primary-btn">Copiar texto para Telegram</button>
+          <p id="telegram-status" class="muted-text" role="status" aria-live="polite"></p>
+        </aside>
+      </div>
+
+      <section class="admin-records" aria-labelledby="offers-heading">
+        <h2 id="offers-heading">Ofertas del navegador</h2>
+        <div id="offer-list" class="admin-record-list"></div>
+      </section>
+    </div>
+  </section>
+  ) : (
+    <section class="section narrow-section">
+      <div class="container prose-box">
+        <span class="eyebrow">Herramienta local</span>
+        <h1>Panel no disponible en producción</h1>
+        <p>El administrador solo funciona en modo de desarrollo en tu equipo. No se incluye en la web publicada.</p>
+      </div>
+    </section>
+  )}
+
+  <script>
+    if (import.meta.env.DEV) {
+      const { initializeLocalOfferManager } = await import('../scripts/admin');
+      initializeLocalOfferManager();
+    }
+  </script>
+</Layout>

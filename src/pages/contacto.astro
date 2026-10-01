@@ -1,0 +1,16 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { SITE } from '../lib/site';
+---
+
+<Layout title="Contacto" description="Datos de contacto del responsable del portal; completa el correo real antes de publicar.">
+  <section class="section narrow-section">
+    <div class="container prose-box">
+      <span class="eyebrow">Contacto</span>
+      <h1>Escríbenos</h1>
+      <p>Correo de contacto: {SITE.contact.email}. Sustituye el placeholder por una dirección atendida antes de publicar.</p>
+      <p>Domicilio: {SITE.contact.address}. Nombre del responsable: {SITE.contact.name}.</p>
+      <p>Los campos entre corchetes son placeholders, no datos de contacto operativos.</p>
+    </div>
+  </section>
+</Layout>

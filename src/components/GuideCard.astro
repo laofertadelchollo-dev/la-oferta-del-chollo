@@ -1,0 +1,12 @@
+---
+const { guide } = Astro.props;
+---
+<article class="guide-card">
+  <div class="guide-card-top">
+    <span class="guide-tag">Guía</span>
+    <time class="guide-date" datetime={guide.publishedAt}>{new Intl.DateTimeFormat('es-ES', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(`${guide.publishedAt}T00:00:00Z`))}</time>
+  </div>
+  <h3><a href={`/guia/${guide.slug}/`}>{guide.title}</a></h3>
+  <p>{guide.excerpt}</p>
+  <a href={`/guia/${guide.slug}/`} class="secondary-btn">Leer guía</a>
+</article>

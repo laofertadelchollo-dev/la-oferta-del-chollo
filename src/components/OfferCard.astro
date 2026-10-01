@@ -1,0 +1,55 @@
+---
+import { getOfferDiscount, getOfferState, getOfferStatusLabel, type Offer } from '../lib/site';
+import PriceBlock from './PriceBlock.astro';
+import CouponBlock from './CouponBlock.astro';
+import DiscountTag from './DiscountTag.astro';
+import OfferButton from './OfferButton.astro';
+
+const { offer }: { offer: Offer } = Astro.props;
+const status = getOfferState(offer);
+const discount = getOfferDiscount(offer);
+---
+
+<article
+  class="offer-card"
+  data-category={offer.category.toLocaleLowerCase('es-ES')}
+  data-store={offer.store.toLocaleLowerCase('es-ES')}
+  data-price={offer.currentPrice}
+  data-discount={discount}
+  data-published-at={offer.publishedAt}
+  data-featured={offer.featured ? 'true' : 'false'}
+  data-search={`${offer.title} ${offer.shortDescription} ${offer.description} ${offer.store} ${offer.seller || ''} ${offer.tags.join(' ')}`.toLocaleLowerCase('es-ES')}
+>
+  <div class="offer-image-wrap">
+    {offer.image
+      ? <img src={offer.image} alt={offer.title} loading="lazy" />
+      : <div class="offer-image-placeholder" aria-label="Imagen no disponible">Imagen no disponible</div>}
+    {offer.featured && <span class="featured-pill">Destacada</span>}
+    {offer.demo && <span class="demo-badge">DEMO · solo desarrollo</span>}
+    <DiscountTag value={discount} />
+  </div>
+
+  <div class="offer-body">
+    <div class="offer-meta">
+      <span class="offer-category">{offer.category}</span>
+      <span class={`state-badge ${status}`}>{getOfferStatusLabel(status)}</span>
+    </div>
+
+    <h3><a href={`/oferta/${offer.slug}/`}>{offer.title}</a></h3>
+    <p>{offer.shortDescription}</p>
+
+    <div class="offer-price-row">
+      <PriceBlock currentPrice={offer.currentPrice} previousPrice={offer.previousPriceVerified ? offer.previousPrice : undefined} />
+      <CouponBlock coupon={offer.coupon} />
+    </div>
+
+    <div class="offer-footer">
+      <span>{offer.store}</span>
+      <span>{offer.conditions || 'Consulta las condiciones en la tienda'}</span>
+    </div>
+
+    <div class="offer-actions">
+      <OfferButton href={`/oferta/${offer.slug}/`} label="Ver oferta" />
+    </div>
+  </div>
+</article>

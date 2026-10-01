@@ -1,0 +1,22 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { SITE } from '../lib/site';
+---
+
+<Layout title="Política de privacidad" description="Información sobre el responsable y el uso de datos de navegación; campos pendientes de completar antes del lanzamiento.">
+  <section class="section narrow-section">
+    <div class="container prose-box">
+      <span class="eyebrow">Legal</span>
+      <h1>Política de privacidad</h1>
+      <p><strong>Responsable:</strong> {SITE.contact.name}. <strong>Contacto:</strong> {SITE.contact.email}. Estos campos son placeholders y deben completarse con los datos reales del responsable antes de publicar.</p>
+      <h2>Datos tratados</h2>
+      <p>El sitio es estático y no incluye cuentas de usuario ni formularios que envíen datos a un servidor. El panel de ofertas guarda su borrador únicamente en el almacenamiento local del navegador en el que se usa.</p>
+      <h2>Analítica</h2>
+      <p>Si se configura un identificador de analítica, las etiquetas se cargan solo después de que la persona visitante acepte la opción de analítica. Puede rechazarse desde el aviso de consentimiento. Describe aquí el proveedor, la finalidad, la base jurídica, los plazos y cualquier transferencia aplicable antes de activar esta función.</p>
+      <h2>Enlaces externos y afiliación</h2>
+      <p>Al seguir un enlace externo, la tienda puede tratar datos conforme a sus propias políticas. {SITE.affiliateDisclosure}</p>
+      <h2>Derechos y reclamaciones</h2>
+      <p>Completa la información sobre cómo ejercer los derechos de protección de datos y presentar una reclamación, así como la autoridad competente, antes de publicar esta política.</p>
+    </div>
+  </section>
+</Layout>

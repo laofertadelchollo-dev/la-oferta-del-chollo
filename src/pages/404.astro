@@ -1,0 +1,17 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Página no encontrada" description="La dirección que buscas no está disponible." noIndex={true}>
+  <section class="section narrow-section">
+    <div class="container prose-box">
+      <span class="eyebrow">Error 404</span>
+      <h1>No encontramos esta página</h1>
+      <p>Puede que la dirección haya cambiado o que la página ya no esté disponible.</p>
+      <div class="hero-actions">
+        <a href="/" class="primary-btn">Volver al inicio</a>
+        <a href="/ofertas/" class="secondary-btn">Explorar ofertas</a>
+      </div>
+    </div>
+  </section>
+</Layout>
