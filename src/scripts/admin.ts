@@ -7,6 +7,7 @@ import {
   generateTelegramPost,
   getOfferStatusLabel,
   getOfferState,
+  isExpired,
   isHttpUrl,
   type Offer,
   type OfferStatus
@@ -35,10 +36,14 @@ export function initializeLocalOfferManager(): void {
   const importTextarea = getElement<HTMLTextAreaElement>('#import-json');
   const filter = getElement<HTMLSelectElement>('#offer-filter');
   const candidateResults = getElement<HTMLDivElement>('#candidate-results');
+  const telegramDialog = getElement<HTMLDialogElement>('#telegram-send-dialog');
+  const telegramPreview = getElement<HTMLPreElement>('#telegram-preview');
+  const telegramSendButton = getElement<HTMLButtonElement>('#confirm-telegram-send');
   const idInput = getElement<HTMLInputElement>('#offer-id');
   const titleInput = getElement<HTMLInputElement>('#title');
   const slugSeed = seedOffers.map((offer) => ({ ...offer }));
   let records: Offer[];
+  let pendingTelegramAction: { action: 'offer'; offer: Offer } | { action: 'test' } | undefined;
 
   try {
     const stored = localStorage.getItem(storageKey);
@@ -279,6 +284,27 @@ export function initializeLocalOfferManager(): void {
           if (updateRecord({ ...offer, status: 'draft' })) setMessage('Oferta despublicada en el catálogo local. Exporta y despliega el catálogo para aplicarlo.');
         }));
       }
+      const canSendToTelegram = !offer.demo
+        && offer.verified === true
+        && offer.status === 'published'
+        && !isExpired(offer)
+        && isHttpUrl(offer.affiliateUrl || '');
+      const sendButton = button('ENVIAR A TELEGRAM', () => {
+        try {
+          const preview = generateTelegramPost(offer);
+          pendingTelegramAction = { action: 'offer', offer };
+          telegramPreview.textContent = preview;
+          telegramSendButton.textContent = 'Confirmar envío';
+          telegramDialog.showModal();
+        } catch (error) {
+          setMessage(error instanceof Error ? error.message : 'No se pudo preparar el envío.', true);
+        }
+      }, 'primary-btn');
+      sendButton.disabled = !canSendToTelegram;
+      sendButton.title = canSendToTelegram
+        ? 'Previsualizar y confirmar el envío al canal.'
+        : 'Requiere una oferta no DEMO, verificada, publicada, vigente y con enlace afiliado válido.';
+      actions.append(sendButton);
       actions.append(
         button('Duplicar', () => {
           const id = `offer-${crypto.randomUUID()}`;
@@ -427,6 +453,70 @@ export function initializeLocalOfferManager(): void {
       stages.textContent = `Candidato → puntuación ${score}/100 → verificación ${verification.valid ? 'superada' : verification.errors.join(' ')} → ${approval} → ${publication}`;
       result.append(heading, stages);
       candidateResults.append(result);
+    }
+  });
+
+  getElement<HTMLButtonElement>('#telegram-demo-test').addEventListener('click', () => {
+    pendingTelegramAction = { action: 'test' };
+    telegramPreview.textContent = 'PRUEBA DE TELEGRAM — LA OFERTA DEL CHOLLO\n\nMensaje de prueba manual. No es una oferta real.';
+    telegramSendButton.textContent = 'Enviar prueba DEMO';
+    telegramDialog.showModal();
+  });
+
+  getElement<HTMLButtonElement>('#cancel-telegram-send').addEventListener('click', () => {
+    pendingTelegramAction = undefined;
+    telegramDialog.close();
+  });
+
+  telegramDialog.addEventListener('cancel', () => {
+    pendingTelegramAction = undefined;
+  });
+
+  telegramSendButton.addEventListener('click', async () => {
+    if (!pendingTelegramAction || telegramSendButton.disabled) return;
+    telegramSendButton.disabled = true;
+    telegramSendButton.textContent = 'Enviando…';
+    try {
+      const sessionResponse = await fetch('/api/telegram/session', {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { Accept: 'application/json' }
+      });
+      if (!sessionResponse.ok) {
+        if (sessionResponse.status === 403) throw new Error('No autorizado. Inicia sesión en Cloudflare Access y vuelve a intentarlo.');
+        if (sessionResponse.status === 503) throw new Error('La integración de Telegram no está configurada en Cloudflare.');
+        throw new Error('No se pudo iniciar una sesión segura para Telegram.');
+      }
+      if (!sessionResponse.headers.get('Content-Type')?.toLowerCase().includes('application/json')) {
+        throw new Error('La sesión de Cloudflare Access no está disponible. Inicia sesión y vuelve a intentarlo.');
+      }
+      const sessionResult = await sessionResponse.json().catch(() => null);
+      if (sessionResult?.ok !== true) throw new Error('No se pudo iniciar una sesión segura para Telegram.');
+
+      const response = await fetch('/api/telegram/send', {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(pendingTelegramAction)
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 502) throw new Error('Telegram no pudo enviar el mensaje.');
+        if (response.status === 403) throw new Error('No autorizado. Inicia sesión en Cloudflare Access y vuelve a intentarlo.');
+        if (response.status === 422) throw new Error('La oferta no cumple los requisitos para enviarse a Telegram.');
+        throw new Error('Telegram no pudo enviar el mensaje.');
+      }
+      if (result?.ok !== true) throw new Error('Telegram no pudo enviar el mensaje.');
+      telegramDialog.close();
+      pendingTelegramAction = undefined;
+      setMessage('Mensaje enviado correctamente al canal de Telegram.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Telegram no pudo enviar el mensaje.', true);
+    } finally {
+      telegramSendButton.disabled = false;
+      telegramSendButton.textContent = pendingTelegramAction?.action === 'test' ? 'Enviar prueba DEMO' : 'Confirmar envío';
     }
   });
 

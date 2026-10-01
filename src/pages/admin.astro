@@ -1,17 +1,17 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { CATEGORIES } from '../lib/site';
-const isDevelopment = import.meta.env.DEV;
+const isAdminEnabled = import.meta.env.DEV || import.meta.env.PUBLIC_ADMIN_PANEL === 'true';
 ---
 
 <Layout title="Administración local" description="Herramienta local para preparar ofertas y exportar el catálogo." noIndex={true}>
-  {isDevelopment ? (
+  {isAdminEnabled ? (
   <section class="section narrow-section">
     <div class="container admin-shell">
       <span class="eyebrow">Herramienta local</span>
       <h1>Panel de ofertas</h1>
       <div class="admin-local-warning" role="note">
-        <strong>Solo para este navegador.</strong> Los cambios se guardan en el almacenamiento local de este dispositivo, no en la web publicada ni en un servidor. Exporta el JSON y actualiza <code>src/data/offers.json</code> para publicar cambios. No introduzcas secretos.
+        <strong>Solo para este navegador.</strong> Los cambios se guardan en el almacenamiento local de este dispositivo, no en un servidor. Exporta el JSON y actualiza <code>src/data/offers.json</code> para publicar cambios. El envío a Telegram solo se ofrece para ofertas publicadas, verificadas y con enlace afiliado; no introduzcas secretos aquí.
       </div>
       <p id="admin-status" class="admin-status" role="status" aria-live="polite"></p>
 
@@ -23,6 +23,7 @@ const isDevelopment = import.meta.env.DEV;
           <input type="file" id="import-offers" accept="application/json,.json" />
         </label>
         <button type="button" id="reset-offers" class="secondary-btn">Restablecer ejemplos</button>
+        <button type="button" id="telegram-demo-test" class="secondary-btn">Enviar prueba DEMO a Telegram</button>
       </div>
 
       <div class="admin-grid admin-workspace">
@@ -176,6 +177,16 @@ const isDevelopment = import.meta.env.DEV;
         </label>
         <div id="offer-list" class="admin-record-list"></div>
       </section>
+
+      <dialog id="telegram-send-dialog" class="telegram-confirmation" aria-labelledby="telegram-confirmation-title">
+        <h2 id="telegram-confirmation-title">Previsualización de Telegram</h2>
+        <pre id="telegram-preview"></pre>
+        <p>¿Enviar esta oferta al canal de Telegram?</p>
+        <div class="admin-actions">
+          <button type="button" id="cancel-telegram-send" class="secondary-btn">Cancelar</button>
+          <button type="button" id="confirm-telegram-send" class="primary-btn">Confirmar envío</button>
+        </div>
+      </dialog>
     </div>
   </section>
   ) : (
@@ -189,7 +200,7 @@ const isDevelopment = import.meta.env.DEV;
   )}
 
   <script>
-    if (import.meta.env.DEV) {
+    if (import.meta.env.DEV || import.meta.env.PUBLIC_ADMIN_PANEL === 'true') {
       const { initializeLocalOfferManager } = await import('../scripts/admin');
       initializeLocalOfferManager();
     }

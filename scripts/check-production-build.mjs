@@ -16,6 +16,10 @@ await collectHtml(dist);
 assert.ok(htmlPaths.length > 0, 'Build output should contain HTML pages.');
 
 const html = (await Promise.all(htmlPaths.map((file) => readFile(file, 'utf8')))).join('\n');
+const builtFiles = await Promise.all(htmlPaths.map(async (file) => ({
+  file,
+  content: await readFile(file, 'utf8')
+})));
 for (const forbidden of ['demo-01', 'example.com/auriculares-demo', 'DEMO · solo desarrollo', '4.8/5']) {
   assert.ok(!html.includes(forbidden), `Production HTML must not expose demo content: ${forbidden}`);
 }
@@ -23,6 +27,10 @@ for (const forbidden of ['demo-01', 'example.com/auriculares-demo', 'DEMO · sol
 const adminPage = await readFile(path.join(dist, 'admin', 'index.html'), 'utf8');
 assert.ok(adminPage.includes('Panel no disponible en producción'));
 assert.ok(!adminPage.includes('offer-form'));
+for (const { file, content } of builtFiles) {
+  assert.ok(!content.includes('TELEGRAM_BOT_TOKEN'), `Production page must not expose bot token bindings: ${file}`);
+  assert.ok(!content.includes('TELEGRAM_PUBLISH_SECRET'), `Production page must not expose publish secret bindings: ${file}`);
+}
 
 const sitemap = await readFile(path.join(dist, 'sitemap.xml'), 'utf8');
 assert.ok(!sitemap.includes('.example'));

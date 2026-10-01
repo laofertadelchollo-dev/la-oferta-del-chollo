@@ -42,13 +42,13 @@ export function createOffer(candidate, editorial = {}) {
 }
 
 export function publishOffer(offer, now = new Date()) {
+  if (offer.demo === true) throw new Error('Una oferta DEMO no se puede publicar.');
   if (offer.status === 'expired' || (offer.expiresAt && offer.expiresAt < now.toISOString().slice(0, 10))) {
     throw new Error('La oferta está caducada y no se puede publicar.');
   }
   if (offer.status !== 'verified') throw new Error('La oferta debe estar en estado verificado antes de publicarse.');
   const candidate = { ...offer, checkedAt: offer.lastVerifiedAt };
   const verification = verifyCandidate(candidate, now);
-  if (offer.demo === true) throw new Error('Una oferta DEMO no se puede publicar.');
   if (offer.verified !== true || !verification.valid) {
     throw new Error(`La oferta no está verificada: ${verification.errors.join(' ') || 'marca la oferta como verificada primero.'}`);
   }

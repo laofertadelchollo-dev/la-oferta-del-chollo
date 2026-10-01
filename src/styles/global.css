@@ -260,6 +260,10 @@ h2 { font-size: clamp(1.8rem, 3vw, 2.5rem); margin-bottom: 0.9rem; }
 .candidate-result { padding: 1rem; border: 1px solid var(--border); border-radius: 10px; background: #f8fafc; }
 .candidate-result h3, .candidate-result p { margin: 0; overflow-wrap: anywhere; }
 .candidate-result p { margin-top: 0.4rem; }
+.telegram-confirmation { width: min(90vw, 680px); max-height: 85vh; overflow: auto; padding: 1.5rem; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+.telegram-confirmation::backdrop { background: rgba(17, 24, 39, 0.65); }
+.telegram-confirmation pre { max-height: 45vh; overflow: auto; padding: 1rem; border: 1px solid var(--border); border-radius: 10px; background: #f8fafc; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+.admin-record-actions button:disabled { opacity: 0.55; cursor: not-allowed; }
 .danger-btn { color: #b91c1c; }
 .analytics-notice { position: fixed; z-index: 50; inset: auto 1rem 1rem; max-width: 760px; margin-inline: auto; padding: 1rem; align-items: center; justify-content: space-between; gap: 1rem; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
 .analytics-notice p { margin: 0; }
