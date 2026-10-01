@@ -17,9 +17,38 @@ import { verifyCandidate, verifyOffer } from '../lib/offer-verification.js';
 import { createOffer, publishOffer } from '../lib/offer-publishing.js';
 import { isCalendarDate } from '../lib/offer-policy.js';
 import { migrateStoredOfferList, parseOfferJson, validateOfferList } from '../lib/offer-import.js';
+import type { CandidateRecord, OfferCandidate } from '../lib/sources/types';
+import { importCandidateData } from '../lib/candidate-import.js';
+import { filterCandidates, selectTopCandidates } from '../lib/candidate-filter.js';
+import { appendCandidateHistory, appendCandidateSearchHistory, type CandidateHistoryEntry } from '../lib/candidate-history.js';
+import { findCandidates } from '../lib/sources/index.js';
+import { expireOffers } from '../lib/offer-expiry.js';
 
 const storageKey = 'la-oferta-del-chollo-offers-v1';
+const candidateStorageKey = 'la-oferta-del-chollo-candidates-v1';
+const candidateHistoryStorageKey = 'la-oferta-del-chollo-candidate-history-v1';
 const today = () => new Date().toISOString().slice(0, 10);
+const formatCandidateCurrency = (value: number, currency: string) =>
+  new Intl.NumberFormat('es-ES', { style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+const isCandidateRecord = (value: unknown): value is CandidateRecord => {
+  if (!value || typeof value !== 'object' || !('candidate' in value) || !('status' in value)
+    || !('score' in value) || !('scoreExplanation' in value) || !('verificationNotes' in value)) return false;
+  const candidate = value.candidate;
+  return Boolean(candidate && typeof candidate === 'object' && 'id' in candidate
+    && typeof candidate.id === 'string'
+    && ['pending', 'verified', 'approved', 'discarded', 'rejected'].includes(String(value.status))
+    && Number.isFinite(value.score) && Array.isArray(value.scoreExplanation)
+    && Array.isArray(value.verificationNotes));
+};
+const isCandidateHistoryEntry = (value: unknown): value is CandidateHistoryEntry => {
+  if (!value || typeof value !== 'object'
+    || !('date' in value) || !('source' in value) || !('product' in value)
+    || !('price' in value) || !('currency' in value) || !('status' in value)) return false;
+  return typeof value.date === 'string' && typeof value.source === 'string'
+    && typeof value.product === 'string'
+    && (value.price === null || Number.isFinite(value.price))
+    && typeof value.currency === 'string' && typeof value.status === 'string';
+};
 const getElement = <T extends HTMLElement>(selector: string): T => {
   const element = document.querySelector<T>(selector);
   if (!element) throw new Error(`No se encontró el control requerido: ${selector}`);
@@ -36,6 +65,12 @@ export function initializeLocalOfferManager(): void {
   const importTextarea = getElement<HTMLTextAreaElement>('#import-json');
   const filter = getElement<HTMLSelectElement>('#offer-filter');
   const candidateResults = getElement<HTMLDivElement>('#candidate-results');
+  const foundCandidatesList = getElement<HTMLDivElement>('#found-candidates-list');
+  const candidateHistoryList = getElement<HTMLDivElement>('#candidate-history-list');
+  const candidateImportData = getElement<HTMLTextAreaElement>('#candidate-import-data');
+  const candidateImportStatus = getElement<HTMLParagraphElement>('#candidate-import-status');
+  const candidateSource = getElement<HTMLSelectElement>('#candidate-source');
+  const candidateFile = getElement<HTMLInputElement>('#candidate-import-file');
   const telegramDialog = getElement<HTMLDialogElement>('#telegram-send-dialog');
   const telegramPreview = getElement<HTMLPreElement>('#telegram-preview');
   const telegramSendButton = getElement<HTMLButtonElement>('#confirm-telegram-send');
@@ -43,6 +78,8 @@ export function initializeLocalOfferManager(): void {
   const titleInput = getElement<HTMLInputElement>('#title');
   const slugSeed = seedOffers.map((offer) => ({ ...offer }));
   let records: Offer[];
+  let candidateRecords: CandidateRecord[] = [];
+  let candidateHistory: CandidateHistoryEntry[] = [];
   let pendingTelegramAction: { action: 'offer'; offer: Offer } | { action: 'test' } | undefined;
 
   try {
@@ -61,6 +98,35 @@ export function initializeLocalOfferManager(): void {
     records = slugSeed;
     statusMessage.textContent = `No se pudieron leer los datos locales; se muestran los ejemplos incluidos: ${error instanceof Error ? error.message : 'error desconocido'}`;
     statusMessage.classList.add('is-error');
+  }
+
+  const expired = expireOffers(records);
+  if (expired.expiredCount) {
+    records = expired.offers;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(records));
+    } catch (error) {
+      statusMessage.textContent = `Hay ofertas caducadas, pero no se pudo guardar el cambio local: ${error instanceof Error ? error.message : 'error desconocido'}`;
+      statusMessage.classList.add('is-error');
+    }
+  }
+  try {
+    const storedCandidates: unknown = JSON.parse(localStorage.getItem(candidateStorageKey) || '[]');
+    const storedHistory: unknown = JSON.parse(localStorage.getItem(candidateHistoryStorageKey) || '[]');
+    if (!Array.isArray(storedCandidates) || !Array.isArray(storedHistory)) {
+      throw new Error('El historial local de candidatos no tiene el formato esperado.');
+    }
+    if (storedCandidates.some((record) => !isCandidateRecord(record))) {
+      throw new Error('Hay candidatos locales con registros incompletos.');
+    }
+    if (storedHistory.some((entry) => !isCandidateHistoryEntry(entry))) {
+      throw new Error('Hay entradas de historial local incompletas.');
+    }
+    candidateRecords = storedCandidates;
+    candidateHistory = storedHistory;
+  } catch (error) {
+    candidateImportStatus.textContent = `No se pudieron leer los candidatos guardados: ${error instanceof Error ? error.message : 'error desconocido'}`;
+    candidateImportStatus.classList.add('is-error');
   }
 
   const setMessage = (message: string, isError = false) => {
@@ -207,6 +273,195 @@ export function initializeLocalOfferManager(): void {
     return control;
   };
 
+  const persistCandidates = (next: CandidateRecord[]) => {
+    try {
+      localStorage.setItem(candidateStorageKey, JSON.stringify(next));
+      candidateRecords = next;
+      renderFoundCandidates();
+      return true;
+    } catch (error) {
+      candidateImportStatus.textContent = `No se pudieron guardar los candidatos: ${error instanceof Error ? error.message : 'error desconocido'}`;
+      candidateImportStatus.classList.add('is-error');
+      return false;
+    }
+  };
+
+  const persistCandidateHistory = (entries: CandidateHistoryEntry[]) => {
+    try {
+      localStorage.setItem(candidateHistoryStorageKey, JSON.stringify(entries));
+      candidateHistory = entries;
+      renderCandidateHistory();
+    } catch (error) {
+      candidateImportStatus.textContent = `No se pudo guardar el historial: ${error instanceof Error ? error.message : 'error desconocido'}`;
+      candidateImportStatus.classList.add('is-error');
+    }
+  };
+
+  function renderCandidateHistory() {
+    candidateHistoryList.replaceChildren();
+    const recent = [...candidateHistory].reverse().slice(0, 30);
+    if (!recent.length) {
+      const empty = document.createElement('p');
+      empty.className = 'empty-state';
+      empty.textContent = 'Todavía no hay búsquedas ni importaciones.';
+      candidateHistoryList.append(empty);
+      return;
+    }
+    for (const entry of recent) {
+      const row = document.createElement('article');
+      row.className = 'candidate-result';
+      const text = document.createElement('p');
+      const productPrice = Number.isFinite(entry.price)
+        ? ` · ${formatCandidateCurrency(entry.price, entry.currency)}`
+        : '';
+      text.textContent = `${new Date(entry.date).toLocaleString('es-ES')} · ${entry.source}${entry.product ? ` · ${entry.product}` : ' · Búsqueda de fuente'}${productPrice} · ${entry.status}`;
+      row.append(text);
+      candidateHistoryList.append(row);
+    }
+  }
+
+  function renderFoundCandidates() {
+    foundCandidatesList.replaceChildren();
+    const filters = {
+      minScore: Number(getElement<HTMLInputElement>('#candidate-min-score').value),
+      minDiscount: Number(getElement<HTMLInputElement>('#candidate-min-discount').value),
+      maxPrice: getElement<HTMLInputElement>('#candidate-max-price').value || null,
+      categories: getElement<HTMLInputElement>('#candidate-categories').value
+        .split(',').map((value) => value.trim().toLowerCase()).filter(Boolean)
+    };
+    const shortlist = new Set(selectTopCandidates(
+      candidateRecords.filter((record) => record.status !== 'discarded' && record.candidate.demo !== true).map((record) => record.candidate),
+      filters
+    ).map(({ candidate }) => candidate.id));
+
+    if (!candidateRecords.length) {
+      const empty = document.createElement('p');
+      empty.className = 'empty-state';
+      empty.textContent = 'Importa un feed autorizado para mostrar candidatos. No hay búsqueda automática configurada.';
+      foundCandidatesList.append(empty);
+      return;
+    }
+
+    for (const record of candidateRecords) {
+      const { candidate } = record;
+      const recordId = record.recordId || candidate.id;
+      const card = document.createElement('article');
+      card.className = 'candidate-result';
+      const title = document.createElement('h3');
+      title.textContent = `${candidate.title}${candidate.demo ? ' · DEMO' : ''}`;
+      const details = document.createElement('p');
+      details.textContent = `${candidate.store} · ${formatCandidateCurrency(candidate.currentPrice, candidate.currency)} · ${candidate.discount === null ? 'Sin descuento verificable' : `${candidate.discount} %`} · ${candidate.category} · ${candidate.source} · ${candidate.available ? 'Disponible según la fuente' : 'No disponible'} · Puntuación ${record.score}/100 · ${record.status}${shortlist.has(candidate.id) ? ' · En selección' : ''}`;
+      const verifiedAt = document.createElement('p');
+      verifiedAt.textContent = `Última comprobación: ${record.lastVerifiedAt ? new Date(record.lastVerifiedAt).toLocaleString('es-ES') : 'pendiente'}`;
+      const explanation = document.createElement('ul');
+      for (const reason of record.scoreExplanation) {
+        const item = document.createElement('li');
+        item.textContent = reason;
+        explanation.append(item);
+      }
+      card.append(title, details, verifiedAt);
+      if (record.rejectionReason) {
+        const rejected = document.createElement('p');
+        rejected.className = 'is-error';
+        rejected.textContent = `Descartada: ${record.rejectionReason}`;
+        card.append(rejected);
+      }
+      if (record.verificationNotes.length) {
+        const notes = document.createElement('p');
+        notes.textContent = record.verificationNotes.join(' ');
+        card.append(notes);
+      }
+      card.append(explanation);
+
+      if (isHttpUrl(candidate.sourceUrl)) {
+        const link = document.createElement('a');
+        link.href = candidate.sourceUrl;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = 'Ver producto en origen';
+        card.append(link);
+      }
+      const actions = document.createElement('div');
+      actions.className = 'admin-record-actions';
+      if (isHttpUrl(candidate.sourceUrl)) {
+        actions.append(button('VER', () => window.open(candidate.sourceUrl, '_blank', 'noopener,noreferrer')));
+      }
+      actions.append(button('VERIFICAR', () => {
+        const result = verifyCandidate(candidate);
+        if (!result.valid) {
+          const updated = candidateRecords.map((item) => (item.recordId || item.candidate.id) === recordId
+            ? { ...item, status: 'rejected' as const, rejectionReason: result.errors.join(' '), verificationNotes: result.verificationNotes }
+            : item);
+          persistCandidates(updated);
+          setMessage(`No se pudo verificar el candidato: ${result.errors.join(' ')}`, true);
+          return;
+        }
+        if (candidate.demo || !window.confirm('Abre la URL del producto y comprueba manualmente el precio, disponibilidad y condiciones actuales. ¿Confirmas que los has revisado?')) return;
+        const checked = new Date().toISOString();
+        const verifiedCandidate: OfferCandidate = {
+          ...candidate,
+          verified: true,
+          checkedAt: checked,
+          lastVerifiedAt: checked,
+          verificationNotes: [...result.verificationNotes, 'La persona operadora confirma haber revisado precio, disponibilidad y condiciones en el origen.']
+        };
+        const score = scoreCandidate(verifiedCandidate);
+        const updated = candidateRecords.map((item) => (item.recordId || item.candidate.id) === recordId
+          ? { ...item, candidate: verifiedCandidate, status: 'verified' as const, score: score.score, scoreExplanation: score.explanation, verificationNotes: verifiedCandidate.verificationNotes, lastVerifiedAt: checked, rejectionReason: undefined }
+          : item);
+        if (persistCandidates(updated)) {
+          persistCandidateHistory(appendCandidateHistory(candidateHistory, [verifiedCandidate], 'verificada manualmente', checked));
+          setMessage('Candidato verificado manualmente. Aún no se ha publicado; puedes aprobarlo como borrador local.');
+        }
+      }));
+      actions.append(button('EDITAR', () => {
+        const existing = records.find((offer) => offer.id === record.offerId);
+        const draft = existing || createOffer(candidate, {
+          category: candidate.category,
+          affiliateUrl: candidate.affiliateUrl || '',
+          score: record.score
+        });
+        setForm(draft);
+        getElement<HTMLFormElement>('#offer-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }));
+      const canApprove = record.status === 'verified' && candidate.verified && !candidate.demo;
+      const approve = button('APROBAR', () => {
+        if (!canApprove) return;
+        try {
+          const draft = createOffer(candidate, {
+            category: candidate.category,
+            affiliateUrl: candidate.affiliateUrl || '',
+            score: record.score
+          });
+          const next = [...records, draft];
+          if (!persist(next)) return;
+          const updated = candidateRecords.map((item) => (item.recordId || item.candidate.id) === recordId
+            ? { ...item, status: 'approved' as const, offerId: draft.id }
+            : item);
+          persistCandidates(updated);
+          setForm(draft);
+          setMessage('Aprobado como borrador local. Completa la descripción editorial y vuelve a comprobar la oferta; no se ha publicado.');
+        } catch (error) {
+          setMessage(error instanceof Error ? error.message : 'No se pudo crear el borrador.', true);
+        }
+      }, 'primary-btn');
+      approve.disabled = !canApprove;
+      approve.title = canApprove ? 'Crear un borrador local; no publica ni envía.' : 'Requiere verificación manual y no ser DEMO.';
+      actions.append(approve);
+      const discard = button('DESCARTAR', () => {
+        const updated = candidateRecords.map((item) => (item.recordId || item.candidate.id) === recordId
+          ? { ...item, status: 'discarded' as const, rejectionReason: 'Descartada manualmente.' }
+          : item);
+        if (persistCandidates(updated)) {
+          persistCandidateHistory(appendCandidateHistory(candidateHistory, [candidate], 'descartada', new Date().toISOString()));
+        }
+      }, 'secondary-btn danger-btn');
+      actions.append(discard);
+      card.append(actions);
+      foundCandidatesList.append(card);
+    }
+  }
+
   const updateRecord = (updated: Offer) => persist(records.map((offer) => offer.id === updated.id ? updated : offer));
 
   function renderRecords() {
@@ -335,6 +590,57 @@ export function initializeLocalOfferManager(): void {
     }
   }
 
+  const importCandidateBatch = (candidates: OfferCandidate[]) => {
+    const filtered = filterCandidates(candidates, {
+      existingCandidates: candidateRecords.map((record) => record.candidate),
+      existingOffers: records
+    });
+    const checkedAt = new Date().toISOString();
+    const newRecords: CandidateRecord[] = [
+      ...filtered.accepted.map((candidate) => {
+        const result = scoreCandidate(candidate);
+        return {
+          recordId: candidate.id,
+          candidate,
+          status: 'pending' as const,
+          score: result.score,
+          scoreExplanation: result.explanation,
+          verificationNotes: [],
+          lastVerifiedAt: null
+        };
+      }),
+      ...filtered.rejected.map(({ candidate, reason }, index) => {
+        const result = scoreCandidate(candidate);
+        return {
+          recordId: candidateRecords.some((record) => (record.recordId || record.candidate.id) === candidate.id)
+            || filtered.accepted.some((item) => item.id === candidate.id)
+            || filtered.rejected.slice(0, index).some((item) => item.candidate.id === candidate.id)
+            ? `${candidate.id}-duplicate-${Date.now()}-${index}`
+            : candidate.id,
+          candidate,
+          status: 'rejected' as const,
+          score: result.score,
+          scoreExplanation: result.explanation,
+          verificationNotes: [],
+          lastVerifiedAt: null,
+          rejectionReason: reason
+        };
+      })
+    ];
+    if (!persistCandidates([...candidateRecords, ...newRecords])) return;
+    const historyEntries = [
+      ...filtered.accepted.map((candidate) => ({ candidate, status: 'pendiente de revisión' })),
+      ...filtered.rejected.map(({ candidate, reason }) => ({ candidate, status: `descartado: ${reason}` }))
+    ];
+    for (const entry of historyEntries) {
+      candidateHistory = appendCandidateHistory(candidateHistory, [entry.candidate], entry.status, checkedAt);
+    }
+    persistCandidateHistory(candidateHistory);
+    candidateImportStatus.textContent = `Importados ${filtered.accepted.length} candidatos pendientes; ${filtered.rejected.length} descartados por filtros o duplicados. Ninguno se ha publicado.`;
+    candidateImportStatus.classList.remove('is-error');
+    setMessage('Candidatos añadidos al panel local; no se ha publicado ni enviado nada.');
+  };
+
   function importOfferJson(text: string) {
     try {
       const imported = parseOfferJson(text) as Offer[];
@@ -343,6 +649,7 @@ export function initializeLocalOfferManager(): void {
         importOutput.classList.remove('is-error');
         return;
       }
+
       if (persist(imported)) {
         importOutput.textContent = `${imported.length} ofertas importadas correctamente.`;
         importOutput.classList.remove('is-error');
@@ -353,6 +660,55 @@ export function initializeLocalOfferManager(): void {
       importOutput.classList.add('is-error');
       setMessage('El JSON tiene errores; corrígelos antes de importar.', true);
     }
+  }
+
+  getElement<HTMLButtonElement>('#import-candidates').addEventListener('click', () => {
+    try {
+      const candidates = importCandidateData(candidateImportData.value, { source: candidateSource.value });
+      importCandidateBatch(candidates);
+    } catch (error) {
+      candidateImportStatus.textContent = error instanceof Error ? error.message : 'No se pudo importar el archivo.';
+      candidateImportStatus.classList.add('is-error');
+      setMessage('No se importaron candidatos; corrige los errores indicados.', true);
+    }
+  });
+
+  candidateFile.addEventListener('change', async () => {
+    const file = candidateFile.files?.[0];
+    if (!file) return;
+    try {
+      candidateImportData.value = await file.text();
+      candidateImportStatus.textContent = `Archivo cargado (${file.name}). Pulsa «Validar e importar candidatos» para continuar.`;
+      candidateImportStatus.classList.remove('is-error');
+    } catch (error) {
+      candidateImportStatus.textContent = `No se pudo leer el archivo: ${error instanceof Error ? error.message : 'error desconocido'}`;
+      candidateImportStatus.classList.add('is-error');
+    } finally {
+      candidateFile.value = '';
+    }
+  });
+
+  getElement<HTMLButtonElement>('#find-source-candidates').addEventListener('click', async () => {
+    const source = candidateSource.value;
+    if (source !== 'amazon' && source !== 'aliexpress' && source !== 'awin' && source !== 'generic') {
+      candidateImportStatus.textContent = 'Selecciona una fuente reconocida.';
+      candidateImportStatus.classList.add('is-error');
+      return;
+    }
+    const checkedAt = new Date().toISOString();
+    try {
+      const candidates = await findCandidates(source);
+      persistCandidateHistory(appendCandidateSearchHistory(candidateHistory, source, `búsqueda: ${candidates.length} candidatos`, checkedAt));
+      importCandidateBatch(candidates);
+    } catch (error) {
+      candidateImportStatus.textContent = error instanceof Error ? error.message : 'No se pudo consultar la fuente.';
+      candidateImportStatus.classList.add('is-error');
+      persistCandidateHistory(appendCandidateSearchHistory(candidateHistory, source, 'fuente sin conexión configurada', checkedAt));
+    }
+  });
+
+  for (const selector of ['#candidate-min-score', '#candidate-min-discount', '#candidate-max-price', '#candidate-categories']) {
+    getElement<HTMLInputElement>(selector).addEventListener('input', renderFoundCandidates);
   }
 
   form.addEventListener('submit', (event) => {
@@ -420,17 +776,28 @@ export function initializeLocalOfferManager(): void {
   getElement<HTMLButtonElement>('#run-simulator').addEventListener('click', () => {
     candidateResults.replaceChildren();
     for (const seed of seedOffers.slice(0, 3)) {
-      const candidate = {
+      const candidate: OfferCandidate = {
+        id: `demo-${seed.id}`,
         title: seed.title,
         store: seed.store,
+        category: seed.category,
         currentPrice: seed.currentPrice,
-        ...(seed.previousPrice ? { previousPrice: seed.previousPrice } : {}),
+        previousPrice: null,
+        discount: null,
+        currency: 'EUR',
         sourceUrl: seed.sourceUrl,
         ...(seed.seller ? { seller: seed.seller } : {}),
         ...(seed.coupon ? { coupon: seed.coupon } : {}),
         conditions: seed.conditions,
+        available: true,
+        source: 'generic',
         checkedAt: new Date().toISOString(),
         previousPriceVerified: false,
+        affiliateRequired: false,
+        verified: false,
+        verificationNotes: ['Datos sintéticos del simulador; no consultan una tienda real.'],
+        lastVerifiedAt: null,
+        expiresAt: null,
         demo: true
       };
       const score = scoreCandidate(candidate);
@@ -450,7 +817,7 @@ export function initializeLocalOfferManager(): void {
       const heading = document.createElement('h3');
       heading.textContent = `${candidate.title} · DEMO`;
       const stages = document.createElement('p');
-      stages.textContent = `Candidato → puntuación ${score}/100 → verificación ${verification.valid ? 'superada' : verification.errors.join(' ')} → ${approval} → ${publication}`;
+      stages.textContent = `Candidato → puntuación ${score.score}/100 → verificación ${verification.valid ? 'superada' : verification.errors.join(' ')} → ${approval} → ${publication}`;
       result.append(heading, stages);
       candidateResults.append(result);
     }
@@ -550,4 +917,6 @@ export function initializeLocalOfferManager(): void {
   form.addEventListener('input', refreshTelegram);
   form.addEventListener('change', refreshTelegram);
   renderRecords();
+  renderFoundCandidates();
+  renderCandidateHistory();
 }

@@ -1,5 +1,5 @@
 import { isProductionOfferEligible, isSafeWebUrl } from './offer-policy.js';
-import { verifyCandidate } from './offer-verification.js';
+import { verifyCandidate, verifyOffer } from './offer-verification.js';
 import { calculateDiscount, createSlug } from './offer-math.js';
 
 export function createOffer(candidate, editorial = {}) {
@@ -47,8 +47,7 @@ export function publishOffer(offer, now = new Date()) {
     throw new Error('La oferta está caducada y no se puede publicar.');
   }
   if (offer.status !== 'verified') throw new Error('La oferta debe estar en estado verificado antes de publicarse.');
-  const candidate = { ...offer, checkedAt: offer.lastVerifiedAt };
-  const verification = verifyCandidate(candidate, now);
+  const verification = verifyOffer(offer, now);
   if (offer.verified !== true || !verification.valid) {
     throw new Error(`La oferta no está verificada: ${verification.errors.join(' ') || 'marca la oferta como verificada primero.'}`);
   }

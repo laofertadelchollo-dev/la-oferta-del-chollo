@@ -163,6 +163,44 @@ const isAdminEnabled = import.meta.env.DEV;
         <div id="candidate-results" class="candidate-results" aria-live="polite"></div>
       </section>
 
+      <section class="admin-import" aria-labelledby="found-candidates-heading">
+        <h2 id="found-candidates-heading">Ofertas encontradas</h2>
+        <p>Importa únicamente exportaciones autorizadas de una plataforma o un feed. Los precios, disponibilidad y condiciones no se verifican en vivo; comprueba cada producto manualmente antes de aprobarlo. No se generan enlaces afiliados.</p>
+        <div class="candidate-import-controls">
+          <label>
+            <span>Fuente declarada</span>
+            <select id="candidate-source">
+              <option value="aliexpress">AliExpress</option>
+              <option value="awin">Awin</option>
+              <option value="generic">Genérica</option>
+              <option value="amazon">Amazon</option>
+            </select>
+          </label>
+          <label>
+            <span>Datos de candidatos JSON o CSV</span>
+            <input type="file" id="candidate-import-file" accept="application/json,.json,text/csv,.csv" />
+          </label>
+        </div>
+        <p>Usa encabezados/campos comunes:         <code>id, productId, title, store, category, currentPrice, previousPrice, previousPriceVerified, discount, currency, sourceUrl, image, seller, coupon, conditions, available, checkedAt, affiliateUrl, affiliateRequired, expiresAt</code>. El descuento se recalcula y solo se acepta si coincide con un precio anterior marcado como fiable.</p>
+        <label for="candidate-import-data">Pegar datos exportados</label>
+        <textarea id="candidate-import-data" rows="8" spellcheck="false" placeholder='[{"title":"...","store":"...","category":"tecnologia","currentPrice":29.99,"previousPrice":49.99,"previousPriceVerified":true,"currency":"EUR","sourceUrl":"https://...","conditions":"Sin condiciones especiales","available":true,"checkedAt":"2026-10-01T12:00:00Z","source":"aliexpress"}]'></textarea>
+        <div class="admin-actions">
+          <button type="button" id="find-source-candidates" class="secondary-btn">Buscar fuente seleccionada</button>
+          <button type="button" id="import-candidates" class="primary-btn">Validar e importar candidatos</button>
+        </div>
+        <p id="candidate-import-status" class="admin-status" role="status" aria-live="polite"></p>
+        <div class="candidate-filter-controls">
+          <label><span>Puntuación mínima</span><input id="candidate-min-score" type="number" min="0" max="100" value="70" /></label>
+          <label><span>Descuento mínimo verificable (%)</span><input id="candidate-min-discount" type="number" min="0" max="100" value="20" /></label>
+          <label><span>Precio máximo (€; opcional)</span><input id="candidate-max-price" type="number" min="0.01" step="0.01" /></label>
+          <label><span>Categorías (slugs separadas por comas; opcional)</span><input id="candidate-categories" type="text" placeholder="tecnologia, hogar" /></label>
+        </div>
+        <div id="found-candidates-list" class="candidate-results" aria-live="polite"></div>
+        <h3>Historial local de búsquedas</h3>
+        <p>Se conserva en este navegador, con precio y estado observados; no se sincroniza ni sustituye una serie histórica oficial.</p>
+        <div id="candidate-history-list" class="candidate-results"></div>
+      </section>
+
       <section class="admin-records" aria-labelledby="offers-heading">
         <h2 id="offers-heading">Ofertas del navegador</h2>
         <label class="admin-filter" for="offer-filter">

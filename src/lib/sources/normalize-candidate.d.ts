@@ -1,3 +1,3 @@
 import type { OfferCandidate } from './types';
 
-export function normalizeCandidate(input: unknown): OfferCandidate;
+export function normalizeCandidate(input: unknown, sourceOverride?: string): OfferCandidate;

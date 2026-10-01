@@ -39,6 +39,26 @@ No hay IDs de analítica, de afiliación o de Search Console preconfigurados. Lo
 
 No añadas el identificador a componentes, JavaScript del navegador ni al JSON del catálogo. Guardarlo en Cloudflare no activa por sí solo la integración; solo un futuro servicio privado autorizado podría leerlo.
 
+### Motor de detección e importación
+
+El motor está preparado en `src/lib/sources/` con adaptadores aislados para AliExpress, Awin, genérico y Amazon. No consulta sitios, no hace scraping y no contiene endpoints ni credenciales supuestos. Por ahora `findCandidates()` falla expresamente para fuentes no conectadas. El panel permite cargar JSON/CSV y seleccionar la procedencia; la importación exige título, tienda, categoría, precio positivo, moneda ISO 4217, URL de origen, disponibilidad, fecha de comprobación y condiciones declaradas. Si no hay condiciones especiales, indícalo explícitamente. Los CSV usan encabezados con los mismos nombres de los campos y valores numéricos simples; `previousPriceVerified` debe ser verdadero para derivar el descuento. Si no se marca fiable, el precio anterior y el descuento quedan como `null`.
+
+Los candidatos se comparan por URL normalizada, ID de producto de la misma fuente y título normalizado; se filtran agotados, datos inválidos, condiciones incompletas, duplicados, enlaces de afiliación ausentes cuando la fuente los exige y descuentos sin prueba. La puntuación de 0 a 100 expone el desglose de cada componente; el umbral inicial es 70, el descuento verificable mínimo es 20 %, el precio máximo y las categorías son opcionales. Una puntuación nunca equivale a verificación ni aprobación.
+
+La verificación automática solo valida la coherencia del archivo y deja constancia de que no ha consultado la tienda. Para marcar un candidato verificado, el panel pide confirmar la comprobación manual de precio, disponibilidad y condiciones en origen. **APROBAR** crea un borrador local; completar la descripción editorial, el enlace afiliado y los pasos existentes de verificación/publicación siguen siendo acciones manuales. DEMO no puede pasar a la selección ni publicarse. El historial de búsquedas e importaciones y los precios se conservan solo en `localStorage` de ese navegador. Las ofertas con fecha de caducidad pasada se marcan expiradas en el panel.
+
+#### Fuente oficial AliExpress
+
+La fuente objetivo es el programa oficial de afiliación de AliExpress: [AliExpress Affiliate Portals](https://portals.aliexpress.com/). La sesión de revisión solo mostró el portal de promoción/onboarding, no una cuenta autenticada; por tanto, no es posible confirmar qué feeds, API, productos o Link Builder están habilitados para tu cuenta. La página pública menciona recomendaciones de producto, promociones/códigos y herramientas/datos, pero eso no demuestra que tu cuenta tenga un feed descargable o acceso API.
+
+Para conectar datos reales, entra tú en el portal y comprueba las secciones de productos/recomendaciones, herramientas de promoción, feeds o Link Builder:
+
+1. Si puedes exportar un feed autorizado, usa el importador local con una muestra no sensible y su diccionario de campos. Hace falta mapear sus columnas a los campos comunes de arriba; no se adivinan nombres ni conversiones del proveedor. El enlace afiliado debe venir ya generado por una herramienta autorizada o añadirse manualmente.
+2. Si el portal ofrece API/feed remoto, proporciona la documentación oficial del mecanismo, el endpoint, las reglas de acceso y los **nombres exactos de variables/campos de credencial que indique AliExpress**. No compartas secretos en el chat. Se configurarán localmente en `.dev.vars` o, para un servicio seguro futuro, como Secrets cifrados en Cloudflare, usando los nombres oficiales sin inventar otros.
+3. No se necesita ni se solicita contraseña. No se añadieron variables de API nuevas a `.env.example`; el `ALIEXPRESS_AFFILIATE_ID` ya reservado allí no se usa para autenticar, consultar productos ni fabricar enlaces.
+
+Awin también está representado por un adaptador sin conexión automática. Requiere un feed/API oficial habilitado en esa cuenta y su documentación y esquema antes de implementar la conexión. No hay ofertas reales conectadas todavía.
+
 ## Añadir y publicar ofertas
 
 La fuente editorial es `src/data/offers.json`. Los registros incluyen identificador, título, slug, tienda, categoría, imagen opcional, precio, cupón y condiciones, descripción, URL de origen, URL afiliada opcional, fechas, última comprobación, etiquetas y estado:
@@ -140,6 +160,9 @@ El sitio es estático y no incluye un backend de ofertas. Los adaptadores de `sr
 - Páginas Astro: `src/pages/`.
 - Componentes: `src/components/`.
 - Datos editoriales: `src/data/`.
+- Importación/selección/duplicados/historial/caducidad de candidatos: `src/lib/candidate-*.js` y `src/lib/offer-expiry.js`.
+- Adaptadores de fuente y formato `OfferCandidate`: `src/lib/sources/`.
+- Puntuación, revisión y aprobación editorial: `src/lib/offer-scoring.js`, `src/lib/offer-verification.js` y `src/lib/offer-publishing.js`.
 - Lógica de ofertas y configuración: `src/lib/site.ts`.
 - Estilos responsive: `src/styles/global.css`.
 - Recursos estáticos: `public/`.

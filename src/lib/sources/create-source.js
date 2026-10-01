@@ -4,10 +4,10 @@ export function createSourceAdapter(id, displayName) {
   return {
     id,
     async findCandidates() {
-      throw new Error(`${displayName} no está conectado. Importa datos desde una API o feed oficial antes de buscar candidatos.`);
+      throw new Error(`${displayName} no tiene una fuente oficial configurada. Importa un feed o archivo autorizado; no se realiza scraping.`);
     },
     normalizeCandidate(input) {
-      return normalizeCandidate(input);
+      return normalizeCandidate(input, id);
     }
   };
 }
