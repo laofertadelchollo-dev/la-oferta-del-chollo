@@ -23,6 +23,7 @@ import { filterCandidates, selectTopCandidates } from '../lib/candidate-filter.j
 import { appendCandidateHistory, appendCandidateSearchHistory, type CandidateHistoryEntry } from '../lib/candidate-history.js';
 import { findCandidates } from '../lib/sources/index.js';
 import { expireOffers } from '../lib/offer-expiry.js';
+import { createAliExpressDraft, importAliExpressCsv } from '../lib/aliexpress-manual-import.js';
 
 const storageKey = 'la-oferta-del-chollo-offers-v1';
 const candidateStorageKey = 'la-oferta-del-chollo-candidates-v1';
@@ -71,6 +72,13 @@ export function initializeLocalOfferManager(): void {
   const candidateImportStatus = getElement<HTMLParagraphElement>('#candidate-import-status');
   const candidateSource = getElement<HTMLSelectElement>('#candidate-source');
   const candidateFile = getElement<HTMLInputElement>('#candidate-import-file');
+  const quickOfferForm = getElement<HTMLFormElement>('#quick-offer-form');
+  const quickImportStatus = getElement<HTMLParagraphElement>('#quick-import-status');
+  const aliexpressCsv = getElement<HTMLTextAreaElement>('#aliexpress-csv');
+  const aliexpressCsvFile = getElement<HTMLInputElement>('#aliexpress-csv-file');
+  const aliexpressCsvResults = getElement<HTMLDivElement>('#aliexpress-csv-results');
+  const importedOffersTable = getElement<HTMLTableSectionElement>('#imported-offers-table');
+  const importedOffersEmpty = getElement<HTMLParagraphElement>('#imported-offers-empty');
   const telegramDialog = getElement<HTMLDialogElement>('#telegram-send-dialog');
   const telegramPreview = getElement<HTMLPreElement>('#telegram-preview');
   const telegramSendButton = getElement<HTMLButtonElement>('#confirm-telegram-send');
@@ -140,6 +148,7 @@ export function initializeLocalOfferManager(): void {
       localStorage.setItem(storageKey, JSON.stringify(next));
       records = next;
       renderRecords();
+      renderImportedOffers();
       return true;
     } catch (error) {
       setMessage(`No se pudieron guardar los cambios en este navegador: ${error instanceof Error ? error.message : 'error desconocido'}`, true);
@@ -641,6 +650,103 @@ export function initializeLocalOfferManager(): void {
     setMessage('Candidatos añadidos al panel local; no se ha publicado ni enviado nada.');
   };
 
+  function renderImportedOffers() {
+    importedOffersTable.replaceChildren();
+    const imported = records.filter((offer) =>
+      offer.store === 'AliExpress' && offer.tags.some((tag) => tag === 'importacion-rapida' || tag === 'importacion-csv')
+    );
+    importedOffersEmpty.hidden = imported.length > 0;
+    for (const offer of imported) {
+      const row = document.createElement('tr');
+      const productCell = document.createElement('th');
+      productCell.scope = 'row';
+      productCell.textContent = offer.title || '(Sin título)';
+      const priceCell = document.createElement('td');
+      priceCell.textContent = offer.currentPrice > 0 ? formatMoney(offer.currentPrice) : 'Pendiente';
+      const categoryCell = document.createElement('td');
+      categoryCell.textContent = CATEGORIES.find((category) => category.slug === offer.category)?.label || 'Sin categoría';
+      const statusCell = document.createElement('td');
+      statusCell.textContent = getOfferStatusLabel(getOfferState(offer));
+      const verifiedCell = document.createElement('td');
+      verifiedCell.textContent = offer.verified ? 'Sí' : 'No';
+      const linkCell = document.createElement('td');
+      if (isHttpUrl(offer.sourceUrl)) {
+        const sourceLink = document.createElement('a');
+        sourceLink.href = offer.sourceUrl;
+        sourceLink.target = '_blank';
+        sourceLink.rel = 'noopener noreferrer';
+        sourceLink.textContent = 'Original';
+        linkCell.append(sourceLink);
+      } else {
+        linkCell.textContent = 'Sin URL original';
+      }
+      const affiliateNotice = document.createElement('small');
+      const affiliateUrl = offer.affiliateUrl || '';
+      if (isHttpUrl(affiliateUrl)) {
+        const affiliateLink = document.createElement('a');
+        affiliateLink.href = affiliateUrl;
+        affiliateLink.target = '_blank';
+        affiliateLink.rel = 'noopener noreferrer nofollow sponsored';
+        affiliateLink.textContent = 'Afiliado';
+        affiliateNotice.append(affiliateLink);
+      } else {
+        affiliateNotice.textContent = 'FALTA ENLACE DE AFILIADO';
+        affiliateNotice.className = 'affiliate-missing';
+      }
+      linkCell.append(document.createElement('br'), affiliateNotice);
+      const dateCell = document.createElement('td');
+      dateCell.textContent = offer.publishedAt || '—';
+      const actionsCell = document.createElement('td');
+      const actions = document.createElement('div');
+      actions.className = 'admin-record-actions';
+      actions.append(button('Editar', () => {
+        setForm(offer);
+        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }));
+      actions.append(button('Verificar', () => {
+        if (!window.confirm('Abre el producto original y comprueba manualmente el precio, la disponibilidad, el enlace afiliado y sus condiciones. ¿Confirmas que lo has revisado ahora?')) return;
+        const result = verifyOffer(offer);
+        if (!result.valid || !result.offer) {
+          setMessage(`No se puede verificar todavía: ${result.errors.join(' ')}`, true);
+          return;
+        }
+        if (updateRecord(result.offer)) setMessage('Oferta verificada. Revisa la ficha antes de publicarla.');
+      }));
+      const hasAffiliateUrl = isHttpUrl(offer.affiliateUrl || '');
+      const canPublish = offer.status === 'verified' && offer.verified && hasAffiliateUrl;
+      const publishButton = button('Publicar', () => {
+        try {
+          if (updateRecord(publishOffer(offer))) setMessage('Oferta publicada en el catálogo local. Exporta el JSON y despliega para aplicar el cambio.');
+        } catch (error) {
+          setMessage(error instanceof Error ? error.message : 'No se pudo publicar la oferta.', true);
+        }
+      }, 'primary-btn');
+      publishButton.disabled = !canPublish;
+      publishButton.title = canPublish ? 'Publicar esta oferta manualmente.' : !hasAffiliateUrl
+        ? 'FALTA ENLACE DE AFILIADO.'
+        : 'Verifica la oferta antes de publicarla.';
+      actions.append(publishButton);
+      if (offer.verified) {
+        actions.append(button('GENERAR TELEGRAM', () => {
+          try {
+            output.value = generateTelegramPost(offer);
+            telegramStatus.textContent = 'Borrador generado. No se ha enviado a Telegram.';
+            output.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          } catch (error) {
+            setMessage(error instanceof Error ? error.message : 'No se pudo generar el borrador de Telegram.', true);
+          }
+        }, 'secondary-btn'));
+      }
+      actions.append(button('Descartar', () => {
+        if (!window.confirm(`¿Descartar «${offer.title}» del almacenamiento local?`)) return;
+        if (persist(records.filter((item) => item.id !== offer.id))) setMessage('Oferta descartada del panel local.');
+      }, 'secondary-btn danger-btn'));
+      actionsCell.append(actions);
+      row.append(productCell, priceCell, categoryCell, statusCell, verifiedCell, linkCell, dateCell, actionsCell);
+      importedOffersTable.append(row);
+    }
+  }
+
   function importOfferJson(text: string) {
     try {
       const imported = parseOfferJson(text) as Offer[];
@@ -710,6 +816,79 @@ export function initializeLocalOfferManager(): void {
   for (const selector of ['#candidate-min-score', '#candidate-min-discount', '#candidate-max-price', '#candidate-categories']) {
     getElement<HTMLInputElement>(selector).addEventListener('input', renderFoundCandidates);
   }
+
+  quickOfferForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    try {
+      const draft = createAliExpressDraft({
+        title: input('quick-title').value,
+        sourceUrl: input('quick-source-url').value,
+        affiliateUrl: input('quick-affiliate-url').value,
+        currentPrice: input('quick-current-price').value,
+        previousPrice: input('quick-previous-price').value,
+        coupon: input('quick-coupon').value,
+        category: input('quick-category').value,
+        seller: input('quick-seller').value,
+        image: input('quick-image').value,
+        conditions: input('quick-conditions').value
+      }, { existingOffers: records, categories: CATEGORIES.map((category) => category.slug) });
+      if (persist([...records, draft])) {
+        quickOfferForm.reset();
+        quickImportStatus.textContent = 'Borrador creado en este navegador. No se ha publicado ni enviado a Telegram.';
+        quickImportStatus.classList.remove('is-error');
+        setMessage('Borrador de AliExpress creado. Completa la ficha y verifica la oferta antes de publicarla.');
+      }
+    } catch (error) {
+      quickImportStatus.textContent = error instanceof Error ? error.message : 'No se pudo crear el borrador.';
+      quickImportStatus.classList.add('is-error');
+      setMessage('No se creó ningún borrador; revisa los datos indicados.', true);
+    }
+  });
+
+  aliexpressCsvFile.addEventListener('change', async () => {
+    const file = aliexpressCsvFile.files?.[0];
+    if (!file) return;
+    try {
+      aliexpressCsv.value = await file.text();
+      aliexpressCsvResults.textContent = `CSV cargado (${file.name}). Pulsa «Importar ofertas CSV» para validar cada fila.`;
+    } catch (error) {
+      aliexpressCsvResults.textContent = `No se pudo leer el archivo: ${error instanceof Error ? error.message : 'error desconocido'}`;
+    } finally {
+      aliexpressCsvFile.value = '';
+    }
+  });
+
+  getElement<HTMLButtonElement>('#import-aliexpress-csv').addEventListener('click', () => {
+    aliexpressCsvResults.replaceChildren();
+    try {
+      const imported = importAliExpressCsv(aliexpressCsv.value, {
+        existingOffers: records,
+        categories: CATEGORIES.map((category) => category.slug)
+      });
+      const csvOffers = imported.offers.map((offer) => ({ ...offer, tags: ['importacion-csv'] }));
+      if (csvOffers.length && !persist([...records, ...csvOffers])) {
+        aliexpressCsvResults.textContent = 'No se guardaron las filas válidas; revisa el estado de almacenamiento local.';
+        return;
+      }
+      const summary = document.createElement('p');
+      summary.textContent = `Filas: ${imported.results.length}. Borradores creados: ${csvOffers.length}. Filas con errores o duplicadas: ${imported.results.length - csvOffers.length}.`;
+      aliexpressCsvResults.append(summary);
+      const list = document.createElement('ul');
+      for (const result of imported.results) {
+        const item = document.createElement('li');
+        item.textContent = `Fila ${result.row}: ${result.ok ? 'IMPORTADA' : 'ERROR'} — ${result.message}`;
+        item.classList.toggle('is-error', !result.ok);
+        list.append(item);
+      }
+      aliexpressCsvResults.append(list);
+      setMessage(`CSV procesado: ${csvOffers.length} borradores creados; cada fila tiene un resultado visible.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo importar el CSV.';
+      aliexpressCsvResults.textContent = message;
+      aliexpressCsvResults.classList.add('is-error');
+      setMessage('El CSV no se pudo procesar.', true);
+    }
+  });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -917,6 +1096,7 @@ export function initializeLocalOfferManager(): void {
   form.addEventListener('input', refreshTelegram);
   form.addEventListener('change', refreshTelegram);
   renderRecords();
+  renderImportedOffers();
   renderFoundCandidates();
   renderCandidateHistory();
 }

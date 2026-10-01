@@ -47,9 +47,17 @@ Los candidatos se comparan por URL normalizada, ID de producto de la misma fuent
 
 La verificación automática solo valida la coherencia del archivo y deja constancia de que no ha consultado la tienda. Para marcar un candidato verificado, el panel pide confirmar la comprobación manual de precio, disponibilidad y condiciones en origen. **APROBAR** crea un borrador local; completar la descripción editorial, el enlace afiliado y los pasos existentes de verificación/publicación siguen siendo acciones manuales. DEMO no puede pasar a la selección ni publicarse. El historial de búsquedas e importaciones y los precios se conservan solo en `localStorage` de ese navegador. Las ofertas con fecha de caducidad pasada se marcan expiradas en el panel.
 
+### Importación manual rápida de AliExpress
+
+El panel local `/admin/` permite crear una oferta rápida con el nombre y completar opcionalmente URL original, URL afiliada, precio, precio anterior, cupón, categoría, vendedor, imagen y condiciones. El descuento solo se calcula si ambos precios son válidos; el precio anterior queda sin verificar y el descuento no se presenta como verificado hasta que se compruebe manualmente. También permite pegar o cargar un CSV con las columnas `title,sourceUrl,affiliateUrl,currentPrice,previousPrice,coupon,category,seller,image`; la [plantilla CSV](./public/templates/aliexpress-offers-template.csv) incluye una fila DEMO que el importador rechaza expresamente. Cada fila CSV devuelve un resultado visible y las válidas se guardan como borradores locales, sin publicación ni envío automático.
+
+`sourceUrl` es la dirección original del producto; `affiliateUrl` debe copiarse del Generador de enlaces oficial de AliExpress después de elegir el ID de rastreo. El panel nunca fabrica enlaces de afiliación. Las ofertas sin `affiliateUrl` muestran **FALTA ENLACE DE AFILIADO** y no pueden publicarse como monetizadas. Los borradores pueden estar incompletos; completa la ficha, verifica manualmente precio, disponibilidad y condiciones y publica solo después de que el panel confirme la verificación. **GENERAR TELEGRAM** solo crea texto para revisión: no lo envía.
+
+En el portal de afiliación: copia la URL del producto, abre el Generador de enlaces, selecciona el ID de rastreo, genera y copia la URL afiliada, y añade las dos URL y los datos conocidos en el panel. Verifica los datos actuales, completa la ficha editorial, pulsa **Verificar** y después **Publicar**. El estado y las ofertas importadas se conservan únicamente en el almacenamiento local del navegador hasta exportar y desplegar el catálogo.
+
 #### Fuente oficial AliExpress
 
-La fuente objetivo es el programa oficial de afiliación de AliExpress: [AliExpress Affiliate Portals](https://portals.aliexpress.com/). La sesión de revisión solo mostró el portal de promoción/onboarding, no una cuenta autenticada; por tanto, no es posible confirmar qué feeds, API, productos o Link Builder están habilitados para tu cuenta. La página pública menciona recomendaciones de producto, promociones/códigos y herramientas/datos, pero eso no demuestra que tu cuenta tenga un feed descargable o acceso API.
+La cuenta del proyecto dispone del Generador de enlaces, el Generador de enlaces por lote y un ID de rastreo con país España. La incorporación actual es manual; el acceso API no está confirmado y no se consulta ninguna API ni se hace scraping.
 
 Para conectar datos reales, entra tú en el portal y comprueba las secciones de productos/recomendaciones, herramientas de promoción, feeds o Link Builder:
 

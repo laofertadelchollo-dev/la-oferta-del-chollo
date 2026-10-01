@@ -12,6 +12,7 @@ import { importCandidateData } from '../src/lib/candidate-import.js';
 import { filterCandidates, findDuplicateCandidate, selectTopCandidates } from '../src/lib/candidate-filter.js';
 import { expireOffers } from '../src/lib/offer-expiry.js';
 import { appendCandidateHistory } from '../src/lib/candidate-history.js';
+import { createAliExpressDraft, importAliExpressCsv } from '../src/lib/aliexpress-manual-import.js';
 
 const offers = JSON.parse(await readFile(new URL('../src/data/offers.json', import.meta.url), 'utf8'));
 const checkedAt = new Date().toISOString();
@@ -106,6 +107,106 @@ test('candidate importer validates common JSON and CSV fields and rejects incomp
   assert.throws(() => importCandidateData(JSON.stringify([{ ...candidate, conditions: '' }]), { source: 'aliexpress' }), /No se importó ningún candidato/);
   assert.throws(() => importCandidateData(JSON.stringify([{ ...candidate, available: 'maybe' }]), { source: 'aliexpress' }), /available debe indicar/);
   assert.throws(() => importCandidateData(JSON.stringify([{ ...candidate, previousPriceVerified: true, discount: 39 }]), { source: 'aliexpress' }), /discount debe coincidir/);
+});
+
+test('AliExpress quick import creates an incomplete, unverified local draft without fabricating links', () => {
+  const draft = createAliExpressDraft({
+    title: 'Lámpara LED para escritorio',
+    sourceUrl: 'https://www.aemet.es/product/desk-lamp',
+    currentPrice: '29,99',
+    previousPrice: '39,99',
+    category: 'tecnologia',
+    conditions: 'Datos introducidos por la persona operadora'
+  }, { categories: ['tecnologia'] });
+
+  assert.equal(draft.store, 'AliExpress');
+  assert.equal(draft.slug, 'lampara-led-para-escritorio');
+  assert.equal(draft.currentPrice, 29.99);
+  assert.equal(draft.previousPrice, 39.99);
+  assert.equal(draft.discount, 25);
+  assert.equal(draft.previousPriceVerified, false);
+  assert.equal(draft.affiliateUrl, '');
+  assert.equal(draft.status, 'draft');
+  assert.equal(draft.verified, false);
+  assert.equal(draft.demo, false);
+  assert.match(draft.shortDescription, /Borrador pendiente de verificación/);
+
+  const partial = createAliExpressDraft({ title: 'Ficha sin precio' });
+  assert.equal(partial.currentPrice, 0);
+  assert.equal(partial.sourceUrl, '');
+  assert.equal(partial.affiliateUrl, '');
+  assert.equal(partial.category, '');
+  assert.throws(() => createAliExpressDraft({ title: 'URL inválida', sourceUrl: 'javascript:alert(1)' }), /URL original/);
+  assert.throws(() => createAliExpressDraft({ title: 'Precio inválido', currentPrice: 'cero' }), /precio mayor que cero/);
+  assert.throws(() => createAliExpressDraft({ title: 'Categoría inválida', category: 'otra' }, { categories: ['tecnologia'] }), /categoría válida/);
+});
+
+test('AliExpress quick import detects duplicates by source URL and falls back to normalized title', () => {
+  const original = createAliExpressDraft({
+    title: 'Auriculares inalámbricos',
+    sourceUrl: 'https://www.aemet.es/item/123'
+  });
+  assert.throws(() => createAliExpressDraft({
+    title: 'Otro título',
+    sourceUrl: 'https://WWW.AEMET.ES/item/123#tracking'
+  }, { existingOffers: [original] }), /Oferta duplicada/);
+  assert.throws(() => createAliExpressDraft({
+    title: 'Auriculares inalambricos'
+  }, { existingOffers: [original] }), /Oferta duplicada/);
+});
+
+test('AliExpress imported offers cannot be published without verification and a real affiliate URL', () => {
+  const draft = createAliExpressDraft({
+    title: 'Soporte de escritorio',
+    sourceUrl: 'https://www.aemet.es/stand',
+    currentPrice: '15.00',
+    category: 'tecnologia',
+    conditions: 'Precio y condiciones pendientes de revisión'
+  });
+  assert.throws(() => publishOffer(draft), /estado verificado/);
+
+  const verification = verifyOffer(draft);
+  assert.equal(verification.valid, true);
+  assert.throws(() => publishOffer({ ...verification.offer, affiliateUrl: '' }), /enlace afiliado/);
+  assert.throws(() => publishOffer({ ...verification.offer, verified: false }), /no está verificada/);
+});
+
+test('AliExpress CSV import reports every row, imports multiple valid offers, and rejects the DEMO template row', async () => {
+  const csv = [
+    'title,sourceUrl,affiliateUrl,currentPrice,previousPrice,coupon,category,seller,image',
+    '"Lámpara, compacta",https://www.aemet.es/item/1,https://www.aemet.es/track/1,"29,99",39.99,,hogar,Marca,',
+    '',
+    'Bolsa organizadora,,,,,,,,',
+    'URL inválida,javascript:alert(1),,,,,,,',
+    'Duplicada,https://www.aemet.es/item/1,,,,,,,',
+    'DEMO - NO IMPORTAR ESTA FILA,,,,,,,,'
+  ].join('\n');
+  const result = importAliExpressCsv(csv, { categories: ['hogar', 'tecnologia'] });
+
+  assert.equal(result.offers.length, 2);
+  assert.equal(result.offers[0].title, 'Lámpara, compacta');
+  assert.equal(result.offers[0].currentPrice, 29.99);
+  assert.equal(result.offers[0].status, 'draft');
+  assert.equal(result.offers[1].currentPrice, 0);
+  assert.deepEqual(result.results.map(({ ok }) => ok), [true, true, false, false, false]);
+  assert.equal(result.results[2].row, 5);
+  assert.match(result.results[2].message, /URL original/);
+  assert.match(result.results[3].message, /duplicada/);
+  assert.match(result.results[4].message, /DEMO/);
+
+  const template = await readFile(new URL('../public/templates/aliexpress-offers-template.csv', import.meta.url), 'utf8');
+  const templateResult = importAliExpressCsv(template);
+  assert.equal(templateResult.offers.length, 0);
+  assert.equal(templateResult.results[0].ok, false);
+  assert.match(templateResult.results[0].message, /DEMO/);
+
+  const semicolonCsv = [
+    'title;sourceUrl;affiliateUrl;currentPrice;previousPrice;coupon;category;seller;image',
+    'Mesa auxiliar;https://www.aemet.es/item/mesa;;"12,50 €";"15,00 €";;hogar;;'
+  ].join('\n');
+  const semicolonResult = importAliExpressCsv(semicolonCsv, { categories: ['hogar'] });
+  assert.equal(semicolonResult.offers.length, 1);
+  assert.equal(semicolonResult.offers[0].currentPrice, 12.5);
 });
 
 test('candidate filters reject unavailable, unverified-discount, duplicate and DEMO records', () => {

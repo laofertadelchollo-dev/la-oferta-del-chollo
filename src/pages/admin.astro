@@ -26,6 +26,66 @@ const isAdminEnabled = import.meta.env.DEV;
         <button type="button" id="telegram-demo-test" class="secondary-btn">Enviar prueba DEMO a Telegram</button>
       </div>
 
+      <section class="admin-import" aria-labelledby="quick-import-heading">
+        <h2 id="quick-import-heading">Importar oferta rápida</h2>
+        <p>Guarda una ficha incompleta como borrador local. Copia por separado la URL original y el enlace generado en AliExpress; no se crean enlaces afiliados automáticamente.</p>
+        <form id="quick-offer-form" class="quick-offer-form" novalidate>
+          <label><span>Nombre del producto *</span><input id="quick-title" maxlength="180" required /></label>
+          <label><span>URL original</span><input id="quick-source-url" type="url" maxlength="2000" placeholder="https://..." /></label>
+          <label><span>URL afiliada (generada por AliExpress)</span><input id="quick-affiliate-url" type="url" maxlength="2000" placeholder="https://..." /></label>
+          <label><span>Precio actual (€)</span><input id="quick-current-price" inputmode="decimal" placeholder="29,99" /></label>
+          <label><span>Precio anterior (€; opcional)</span><input id="quick-previous-price" inputmode="decimal" placeholder="39,99" /></label>
+          <label><span>Cupón (opcional)</span><input id="quick-coupon" maxlength="80" /></label>
+          <label>
+            <span>Categoría</span>
+            <select id="quick-category">
+              <option value="">Sin categoría</option>
+              {CATEGORIES.map((category) => <option value={category.slug}>{category.label}</option>)}
+            </select>
+          </label>
+          <label><span>Vendedor (opcional)</span><input id="quick-seller" maxlength="120" /></label>
+          <label><span>Imagen (opcional)</span><input id="quick-image" maxlength="500" placeholder="https://... o /images/..." /></label>
+          <label class="quick-wide"><span>Condiciones (opcional)</span><textarea id="quick-conditions" rows="2" maxlength="500"></textarea></label>
+          <div class="admin-actions quick-wide"><button type="submit" class="primary-btn">Crear borrador</button></div>
+        </form>
+        <p id="quick-import-status" class="admin-status" role="status" aria-live="polite"></p>
+
+        <h3>Importar ofertas CSV</h3>
+        <p>Columnas: <code>title,sourceUrl,affiliateUrl,currentPrice,previousPrice,coupon,category,seller,image</code>. El nombre del producto es obligatorio; el resto de campos puede completarse después. Cada fila mostrará si se importó o por qué se rechazó.</p>
+        <label for="aliexpress-csv">Pegar CSV</label>
+        <textarea id="aliexpress-csv" rows="6" spellcheck="false" placeholder="title,sourceUrl,affiliateUrl,currentPrice,previousPrice,coupon,category,seller,image"></textarea>
+        <div class="admin-actions">
+          <label class="secondary-btn file-button">Cargar CSV<input type="file" id="aliexpress-csv-file" accept="text/csv,.csv" /></label>
+          <button type="button" id="import-aliexpress-csv" class="primary-btn">Importar ofertas CSV</button>
+          <a class="secondary-btn" href="/templates/aliexpress-offers-template.csv" download>Descargar plantilla CSV</a>
+        </div>
+        <div id="aliexpress-csv-results" class="admin-import-results" role="status" aria-live="polite"></div>
+        <details class="admin-help">
+          <summary>Cómo incorporar una oferta de AliExpress</summary>
+          <ol>
+            <li>Copia la URL original de la página del producto.</li>
+            <li>Abre el Generador de enlaces de tu cuenta de afiliación de AliExpress.</li>
+            <li>Selecciona el ID de rastreo correcto para esta promoción.</li>
+            <li>Genera el enlace de seguimiento desde la herramienta oficial.</li>
+            <li>Copia la URL afiliada generada; el panel no la fabrica.</li>
+            <li>Introduce ambas URL y los datos conocidos en la importación rápida o en el CSV.</li>
+            <li>Abre el producto y verifica manualmente precio, disponibilidad, cupón y condiciones.</li>
+            <li>Completa la ficha, verifica la oferta y publícala manualmente. No se envía automáticamente a Telegram.</li>
+          </ol>
+        </details>
+      </section>
+
+      <section class="admin-records" aria-labelledby="imported-offers-heading">
+        <h2 id="imported-offers-heading">Ofertas importadas</h2>
+        <div class="admin-table-wrap">
+          <table class="admin-imported-table">
+            <thead><tr><th>Producto</th><th>Precio</th><th>Categoría</th><th>Estado</th><th>Verificada</th><th>Enlace</th><th>Fecha</th><th>Acciones</th></tr></thead>
+            <tbody id="imported-offers-table"></tbody>
+          </table>
+        </div>
+        <p id="imported-offers-empty" class="empty-state">Todavía no hay borradores importados.</p>
+      </section>
+
       <div class="admin-grid admin-workspace">
         <form class="admin-form" id="offer-form" novalidate>
           <input type="hidden" id="offer-id" />

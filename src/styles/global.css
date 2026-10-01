@@ -255,6 +255,7 @@ h2 { font-size: clamp(1.8rem, 3vw, 2.5rem); margin-bottom: 0.9rem; }
 .admin-filter select { flex: 1; min-width: 0; padding: 0.65rem; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
 .admin-import, .admin-simulator { margin-top: 2rem; padding: 1.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; }
 .admin-import > p, .admin-simulator > p { max-width: 75ch; }
+.admin-import code { overflow-wrap: anywhere; }
 .admin-import textarea { width: 100%; margin-top: 0.5rem; padding: 0.8rem; border: 1px solid var(--border); border-radius: 8px; font-family: ui-monospace, monospace; }
 .candidate-results { display: grid; gap: 0.75rem; margin-top: 1rem; }
 .candidate-result { padding: 1rem; border: 1px solid var(--border); border-radius: 10px; background: #f8fafc; }
@@ -266,6 +267,23 @@ h2 { font-size: clamp(1.8rem, 3vw, 2.5rem); margin-bottom: 0.9rem; }
 .candidate-import-controls label, .candidate-filter-controls label { display: grid; gap: 0.4rem; min-width: 0; }
 .candidate-import-controls input, .candidate-import-controls select, .candidate-filter-controls input { width: 100%; min-width: 0; padding: 0.65rem; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
 .admin-import > textarea#candidate-import-data { width: 100%; margin-top: 0.5rem; padding: 0.8rem; border: 1px solid var(--border); border-radius: 8px; font-family: ui-monospace, monospace; }
+.quick-offer-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1rem 0; }
+.quick-offer-form label { display: grid; gap: 0.4rem; min-width: 0; }
+.quick-offer-form input, .quick-offer-form select, .quick-offer-form textarea { width: 100%; min-width: 0; padding: 0.7rem; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+.quick-offer-form .quick-wide { grid-column: 1 / -1; }
+.admin-table-wrap { width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: #fff; }
+.admin-imported-table { width: 100%; border-collapse: collapse; min-width: 880px; }
+.admin-imported-table th, .admin-imported-table td { padding: 0.8rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.admin-imported-table thead { background: #f8fafc; }
+.admin-imported-table td:last-child .admin-record-actions { min-width: 280px; }
+.admin-imported-table small { display: inline-block; margin-top: 0.3rem; }
+.affiliate-missing { color: #b91c1c; font-weight: 800; }
+.admin-import-results ul { padding-left: 1.25rem; }
+.admin-import-results li { margin: 0.3rem 0; overflow-wrap: anywhere; }
+.admin-import-results .is-error { color: #b91c1c; font-weight: 600; }
+.admin-help { margin-top: 1.5rem; padding: 1rem; border: 1px solid var(--border); border-radius: 10px; background: #f8fafc; }
+.admin-help summary { cursor: pointer; font-weight: 700; }
+.admin-help li { margin: 0.4rem 0; }
 .telegram-confirmation { width: min(90vw, 680px); max-height: 85vh; overflow: auto; padding: 1.5rem; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
 .telegram-confirmation::backdrop { background: rgba(17, 24, 39, 0.65); }
 .telegram-confirmation pre { max-height: 45vh; overflow: auto; padding: 1rem; border: 1px solid var(--border); border-radius: 10px; background: #f8fafc; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
@@ -309,5 +327,7 @@ h2 { font-size: clamp(1.8rem, 3vw, 2.5rem); margin-bottom: 0.9rem; }
   .hero-brand-image { aspect-ratio: 1 / 1; object-position: center; }
   .admin-record { align-items: stretch; flex-direction: column; }
   .candidate-import-controls, .candidate-filter-controls { grid-template-columns: 1fr; }
+  .quick-offer-form { grid-template-columns: 1fr; }
+  .quick-offer-form .quick-wide { grid-column: auto; }
   .analytics-notice { inset-inline: 0.5rem; bottom: 0.5rem; align-items: stretch; flex-direction: column; }
 }
