@@ -33,6 +33,12 @@ Copia `.env.example` como `.env` para desarrollo local y completa solo los valor
 
 No hay IDs de analítica, de afiliación o de Search Console preconfigurados. Los enlaces publicados se introducen en cada oferta y deben ser reales.
 
+### AliExpress
+
+`ALIEXPRESS_AFFILIATE_ID` está reservado en `.env.example`; para desarrollo local se introduce únicamente en el `.env` ignorado por Git. En Cloudflare, el lugar de configuración es **Workers & Pages → la-oferta-del-chollo → Settings → Variables and Secrets**. Esta versión estática no lee el identificador ni construye enlaces afiliados con él. Genera el enlace desde tu cuenta de afiliación de AliExpress y copia la URL completa y real al campo `affiliateUrl` de cada oferta (también disponible en el panel local). `sourceUrl` conserva la URL original del producto. No publiques como `published` una oferta sin su enlace afiliado real.
+
+No añadas el identificador a componentes, JavaScript del navegador ni al JSON del catálogo. Guardarlo en Cloudflare no activa por sí solo la integración; solo un futuro servicio privado autorizado podría leerlo.
+
 ## Añadir y publicar ofertas
 
 La fuente editorial es `src/data/offers.json`. Los registros incluyen identificador, título, slug, tienda, categoría, imagen opcional, precio, cupón y condiciones, descripción, URL de origen, URL afiliada opcional, fechas, última comprobación, etiquetas y estado:
@@ -58,7 +64,7 @@ Las ofertas DEMO están protegidas contra edición directa y al duplicarlas se c
 
 ## Telegram
 
-El panel crea un borrador con los datos de la oferta y permite copiarlo. No envía mensajes ni utiliza el bot token. Si falta un enlace real, el borrador lo indica; nunca inventa una URL.
+El panel crea un borrador con los datos de la oferta y permite copiarlo. No envía mensajes ni utiliza el bot token. Si falta un enlace real, el borrador lo indica; nunca inventa una URL. `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` están reservados en `.env.example`; no los rellenes en el frontend ni en el repositorio. Cuando exista una integración Worker privada, configura el token como **Secret** en **Workers & Pages → la-oferta-del-chollo → Settings → Variables and Secrets** y el chat ID como variable privada del Worker. La versión estática actual no necesita ni consume esos valores.
 
 ## SEO y Google Search Console
 
