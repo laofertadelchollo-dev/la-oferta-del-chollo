@@ -18,7 +18,13 @@ export function verifyCandidate(candidate, now = new Date()) {
   if (typeof candidate.store !== 'string' || !candidate.store.trim()) errors.push('Falta la tienda.');
   if (typeof candidate.category !== 'string' || !candidate.category.trim()) errors.push('Falta la categoría.');
   if (!Number.isFinite(candidate.currentPrice) || candidate.currentPrice <= 0) errors.push('El precio debe ser mayor que cero.');
-  if (!isSafeWebUrl(candidate.sourceUrl) && !(candidate.demo === true && isSafeDemoUrl(candidate.sourceUrl))) errors.push('Falta una URL de origen HTTP(S) válida.');
+  const promoItemsOffer = candidate.source === 'aliexpress'
+    && Array.isArray(candidate.tags) && candidate.tags.includes('aliexpress-promo-items');
+  if (!isSafeWebUrl(candidate.sourceUrl)
+    && !(candidate.demo === true && isSafeDemoUrl(candidate.sourceUrl))
+    && !(promoItemsOffer && isSafeWebUrl(candidate.affiliateUrl))) {
+    errors.push('Falta una URL de origen HTTP(S) válida.');
+  }
   if (typeof candidate.available !== 'boolean') errors.push('La disponibilidad debe estar indicada explícitamente.');
   if (typeof candidate.currency !== 'string' || !/^[A-Z]{3}$/.test(candidate.currency)) errors.push('Falta una moneda ISO 4217 válida.');
   if (!['aliexpress', 'awin', 'generic', 'amazon'].includes(candidate.source)) errors.push('Falta una fuente reconocida.');
@@ -47,8 +53,15 @@ export function verifyCandidate(candidate, now = new Date()) {
   if (candidate.available === false) errors.push('El producto figura como agotado o no disponible.');
   if (candidate.affiliateUrl && !isSafeWebUrl(candidate.affiliateUrl)) errors.push('El enlace afiliado no es una URL HTTP(S) válida.');
   if (candidate.affiliateRequired === true && !candidate.affiliateUrl) errors.push('La fuente exige enlace afiliado, pero el candidato no lo incluye.');
+  if (candidate.affiliateRequired === true && candidate.affiliateUrl && !isSafeWebUrl(candidate.affiliateUrl)) {
+    errors.push('El enlace afiliado debe ser una URL HTTP(S) válida.');
+  }
   if (candidate.expiresAt && (!isCalendarDate(candidate.expiresAt) || candidate.expiresAt < now.toISOString().slice(0, 10))) {
     errors.push('La fecha de caducidad es inválida o ya ha pasado.');
+  }
+  if (candidate.promotionEndDate && (!isCalendarDate(candidate.promotionEndDate)
+    || candidate.promotionEndDate < now.toISOString().slice(0, 10))) {
+    errors.push('La promoción ha caducado o su fecha de finalización no es válida.');
   }
 
   return {
@@ -64,20 +77,32 @@ export function verifyCandidate(candidate, now = new Date()) {
 }
 
 export function verifyOffer(offer, now = new Date()) {
+  const promoItemsOffer = Array.isArray(offer.tags) && offer.tags.includes('aliexpress-promo-items');
   const result = verifyCandidate({
     ...offer,
     category: offer.category,
-    currency: 'EUR',
+    currency: offer.currency || (promoItemsOffer ? '' : 'EUR'),
     available: true,
-    source: 'generic',
+    source: promoItemsOffer ? 'aliexpress' : 'generic',
+    tags: offer.tags || [],
     conditions: typeof offer.conditions === 'string' ? offer.conditions : '',
     previousPrice: offer.previousPrice ?? null,
     discount: offer.previousPriceVerified === true ? offer.discount ?? null : null,
-    affiliateRequired: false,
+    affiliateRequired: promoItemsOffer,
     checkedAt: now.toISOString()
   }, now);
   if (!result.valid || result.demo) {
     return { ...result, valid: false, errors: [...result.errors, ...(result.demo ? ['Las ofertas DEMO no pueden marcarse como verificadas para producción.'] : [])] };
   }
-  return { ...result, offer: { ...offer, verified: true, status: 'verified', lastVerifiedAt: result.checkedAt } };
+  return {
+    ...result,
+    offer: {
+      ...offer,
+      verified: true,
+      status: 'verified',
+      availabilityStatus: 'active',
+      lastVerifiedAt: result.checkedAt,
+      lastCheckedAt: result.checkedAt
+    }
+  };
 }

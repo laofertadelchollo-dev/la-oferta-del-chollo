@@ -5,7 +5,7 @@ import { migrateStoredOfferList, parseOfferJson, validateOfferList } from '../sr
 import { scoreCandidate } from '../src/lib/offer-scoring.js';
 import { verifyCandidate, verifyOffer } from '../src/lib/offer-verification.js';
 import { createOffer, publishOffer } from '../src/lib/offer-publishing.js';
-import { generateTelegramPost } from '../src/lib/offer-telegram.js';
+import { generateTelegramDraft, generateTelegramPost } from '../src/lib/offer-telegram.js';
 import { findCandidates } from '../src/lib/sources/index.js';
 import { genericSource } from '../src/lib/sources/generic.js';
 import { importCandidateData } from '../src/lib/candidate-import.js';
@@ -13,6 +13,13 @@ import { filterCandidates, findDuplicateCandidate, selectTopCandidates } from '.
 import { expireOffers } from '../src/lib/offer-expiry.js';
 import { appendCandidateHistory } from '../src/lib/candidate-history.js';
 import { createAliExpressDraft, importAliExpressCsv } from '../src/lib/aliexpress-manual-import.js';
+import {
+  createAliExpressPromoDraft,
+  findAliExpressPromoDuplicate,
+  parseAliExpressPromoItems,
+  parseAliExpressPrice,
+  validateAliExpressPromoDraft
+} from '../src/lib/aliexpress-promo-items.js';
 
 const offers = JSON.parse(await readFile(new URL('../src/data/offers.json', import.meta.url), 'utf8'));
 const checkedAt = new Date().toISOString();
@@ -136,6 +143,7 @@ test('AliExpress quick import creates an incomplete, unverified local draft with
   assert.equal(partial.sourceUrl, '');
   assert.equal(partial.affiliateUrl, '');
   assert.equal(partial.category, '');
+  assert.equal(validateOfferList([partial]).length, 1);
   assert.throws(() => createAliExpressDraft({ title: 'URL inválida', sourceUrl: 'javascript:alert(1)' }), /URL original/);
   assert.throws(() => createAliExpressDraft({ title: 'Precio inválido', currentPrice: 'cero' }), /precio mayor que cero/);
   assert.throws(() => createAliExpressDraft({ title: 'Categoría inválida', category: 'otra' }, { categories: ['tecnologia'] }), /categoría válida/);
@@ -169,6 +177,139 @@ test('AliExpress imported offers cannot be published without verification and a 
   assert.equal(verification.valid, true);
   assert.throws(() => publishOffer({ ...verification.offer, affiliateUrl: '' }), /enlace afiliado/);
   assert.throws(() => publishOffer({ ...verification.offer, verified: false }), /no está verificada/);
+});
+
+test('AliExpress Promo Items parser extracts title, EUR price and the exact affiliate URL', () => {
+  const parsed = parseAliExpressPromoItems([
+    '¡Mejores Recomendaciones de Productos en Oferta!',
+    '2025 nuevo cabezal de ducha ion con filtro de mano, turbocompresor con múltiples modos de pulverización, interruptor de encendido/apagado de filtro incorporado',
+    'Ahora precio: EUR 11.61',
+    '🔗 Haz clic y compra: [https://s.click.aliexpress.com/e/_c3Er9SYh](https://s.click.aliexpress.com/e/_c3Er9SYh)',
+    'Idioma: Spanish',
+    'Tracking ID: laofertadelchollo'
+  ].join('\n'));
+
+  assert.equal(parsed.title, '2025 nuevo cabezal de ducha ion con filtro de mano, turbocompresor con múltiples modos de pulverización, interruptor de encendido/apagado de filtro incorporado');
+  assert.equal(parsed.currentPrice, 11.61);
+  assert.equal(parsed.currency, 'EUR');
+  assert.equal(parsed.affiliateUrl, 'https://s.click.aliexpress.com/e/_c3Er9SYh');
+  assert.equal(parsed.language, 'Spanish');
+  assert.equal(parsed.trackingId, 'laofertadelchollo');
+});
+
+test('AliExpress Promo Items parser tolerates decimal commas, price variants, emojis and line endings', () => {
+  const commaPrice = parseAliExpressPromoItems('¡Oferta! 🔥\nAuriculares útiles\nAhora precio: 11,61 €\nhttps://s.click.aliexpress.com/e/item');
+  const codeFirst = parseAliExpressPromoItems('Material promocional\rProducto de prueba\rEUR 11.61\rhttps://s.click.aliexpress.com/e/item');
+  const codeLast = parseAliExpressPromoItems('Recomendaciones\n💡 Lámpara de escritorio\n11.61 EUR\n🔗 https://s.click.aliexpress.com/e/item');
+
+  assert.equal(commaPrice.currentPrice, 11.61);
+  assert.equal(commaPrice.currency, 'EUR');
+  assert.equal(commaPrice.title, 'Auriculares útiles');
+  assert.equal(codeFirst.currentPrice, 11.61);
+  assert.equal(codeFirst.currency, 'EUR');
+  assert.equal(codeFirst.title, 'Producto de prueba');
+  assert.equal(codeLast.currentPrice, 11.61);
+  assert.equal(codeLast.affiliateUrl, 'https://s.click.aliexpress.com/e/item');
+  assert.equal(parseAliExpressPrice('1.234,56 €'), 1234.56);
+});
+
+test('AliExpress Promo Items drafts validate title, price and affiliate URL before verification', () => {
+  const missingAffiliate = createAliExpressPromoDraft({
+    title: 'Producto pendiente de enlace',
+    currentPrice: 11.61,
+    currency: 'EUR'
+  });
+  const noTitle = validateAliExpressPromoDraft({ title: '', affiliateUrl: '' });
+  const invalidPrice = validateAliExpressPromoDraft({ title: 'Producto', currentPrice: 0, currency: 'EUR' });
+  const verification = verifyOffer({ ...missingAffiliate, currency: '' });
+
+  assert.equal(missingAffiliate.status, 'draft');
+  assert.equal(missingAffiliate.verified, false);
+  assert.equal(missingAffiliate.demo, false);
+  assert.deepEqual(noTitle.errors, ['Falta el título.']);
+  assert.ok(invalidPrice.errors.includes('El precio no es válido.'));
+  assert.ok(verification.errors.some((error) => /enlace afiliado/i.test(error)));
+  assert.ok(verification.errors.some((error) => /moneda/i.test(error)));
+});
+
+test('AliExpress Promo Items draft associates one to six ordered images and preserves legacy images', () => {
+  const makeImage = (order) => ({ url: `data:image/webp;base64,${Buffer.from(`image-${order}`).toString('base64')}`, isPrimary: order === 0, order });
+  const oneImage = createAliExpressPromoDraft({
+    title: 'Producto con una imagen', images: [makeImage(0)]
+  });
+  const sixImages = createAliExpressPromoDraft({
+    title: 'Producto con seis imágenes', images: Array.from({ length: 6 }, (_, index) => makeImage(index))
+  });
+
+  assert.equal(oneImage.images.length, 1);
+  assert.equal(oneImage.image, oneImage.images[0].url);
+  assert.equal(sixImages.images.length, 6);
+  assert.equal(sixImages.images.filter((image) => image.isPrimary).length, 1);
+  assert.equal(sixImages.images[0].isPrimary, true);
+  assert.equal(validateOfferList([offers[0]]).length, 1);
+  assert.equal(validateOfferList([{
+    ...sixImages,
+    currentPrice: 1,
+    affiliateUrl: 'https://s.click.aliexpress.com/e/image-test'
+  }]).length, 1);
+  const legacyTelegramOffer = {
+    ...offers[0],
+    demo: false,
+    currentPrice: 12.34,
+    sourceUrl: 'https://www.aemet.es/',
+    affiliateUrl: 'https://www.aemet.es/',
+    shortDescription: 'Resumen de prueba.',
+    description: 'Descripción de prueba.'
+  };
+  assert.equal(generateTelegramDraft(legacyTelegramOffer).images.length, (legacyTelegramOffer.image ? 1 : 0));
+  assert.equal(generateTelegramDraft({
+    ...sixImages,
+    currentPrice: 1,
+    sourceUrl: 'https://www.aemet.es/',
+    affiliateUrl: 'https://www.aemet.es/',
+    shortDescription: 'Resumen de prueba.',
+    description: 'Descripción de prueba.'
+  }).images.length, 6);
+});
+
+test('AliExpress Promo Items import detects duplicates by affiliate URL and title fallback', () => {
+  const existing = createAliExpressPromoDraft({
+    title: 'Lámpara inalámbrica',
+    affiliateUrl: 'https://s.click.aliexpress.com/e/item-1'
+  });
+  const byAffiliate = findAliExpressPromoDuplicate({
+    title: 'Otro título',
+    affiliateUrl: 'https://s.click.aliexpress.com/e/item-1'
+  }, [existing]);
+  const byTitle = findAliExpressPromoDuplicate({
+    title: 'Lampara inalambrica',
+    affiliateUrl: ''
+  }, [{ title: 'Lámpara inalámbrica', affiliateUrl: '', sourceUrl: '' }]);
+
+  assert.equal(byAffiliate, existing);
+  assert.ok(byTitle);
+  assert.throws(() => createAliExpressPromoDraft({
+    title: 'Producto distinto',
+    affiliateUrl: 'https://s.click.aliexpress.com/e/item-1'
+  }, { existingOffers: [existing] }), /parece estar ya importado/);
+});
+
+test('AliExpress Promo Items can be verified and published with an affiliate URL without inventing sourceUrl', () => {
+  const draft = createAliExpressPromoDraft({
+    title: 'Accesorio real',
+    category: 'tecnologia',
+    currentPrice: 11.61,
+    currency: 'EUR',
+    affiliateUrl: 'https://s.click.aliexpress.com/e/item-2',
+    conditions: 'Precio y disponibilidad comprobados manualmente',
+    shortDescription: 'Accesorio revisado manualmente.',
+    description: 'Descripción editorial completada tras revisar la ficha.'
+  });
+  const verification = verifyOffer(draft);
+  assert.equal(verification.valid, true);
+  assert.equal(verification.offer.sourceUrl, '');
+  assert.equal(verification.offer.status, 'verified');
+  assert.equal(publishOffer(verification.offer).status, 'published');
 });
 
 test('AliExpress CSV import reports every row, imports multiple valid offers, and rejects the DEMO template row', async () => {

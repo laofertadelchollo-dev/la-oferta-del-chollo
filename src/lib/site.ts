@@ -1,8 +1,9 @@
 import { isCalendarDate, isProductionOfferEligible, isSafeWebUrl } from './offer-policy.js';
 import { calculateDiscount } from './offer-math.js';
+import { AVAILABILITY_LABELS, getAvailabilityState, OFFER_CATEGORIES } from './offer-lifecycle.js';
 
 export { calculateDiscount, createSlug } from './offer-math.js';
-export { generateTelegramPost } from './offer-telegram.js';
+export { generateTelegramDraft, generateTelegramPost } from './offer-telegram.js';
 
 export const SITE = {
   name: 'LA OFERTA DEL CHOLLO',
@@ -41,6 +42,7 @@ export const CATEGORIES = [
 ];
 
 export type OfferStatus = 'draft' | 'verified' | 'published' | 'expired';
+export type OfferAvailabilityStatus = 'draft' | 'active' | 'price_update' | 'promotion_expired' | 'out_of_stock' | 'unavailable' | 'archived';
 
 export type Offer = {
   id: string;
@@ -48,11 +50,19 @@ export type Offer = {
   slug: string;
   store: string;
   category: string;
+  subcategory?: string;
+  availabilityStatus?: OfferAvailabilityStatus;
+  promotionEndDate?: string | null;
+  lastCheckedAt?: string;
+  priceHistory?: { checkedAt: string; price: number; currency: string }[];
+  featuredToday?: boolean;
   image?: string;
+  images?: { url: string; isPrimary: boolean; order: number }[];
   currentPrice: number;
+  currency?: string;
   previousPrice?: number;
   previousPriceVerified?: boolean;
-  discount?: number;
+  discount?: number | null;
   coupon?: string;
   conditions: string;
   seller?: string;
@@ -60,6 +70,8 @@ export type Offer = {
   shortDescription: string;
   sourceUrl: string;
   affiliateUrl?: string;
+  trackingId?: string;
+  promoLanguage?: string;
   publishedAt: string;
   expiresAt?: string;
   lastVerifiedAt?: string;
@@ -87,7 +99,15 @@ export type Guide = {
   publishedAt: string;
 };
 
-export function formatMoney(value: number): string {
+export function formatMoney(value: number, currency = 'EUR'): string {
+  if (currency !== 'EUR') {
+    return new Intl.NumberFormat('es-ES', {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value);
+  }
   return `${new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)} €`;
 }
 
@@ -112,6 +132,27 @@ export function getOfferStatusLabel(state: OfferStatus | 'pending'): string {
     case 'draft': return 'Borrador';
     case 'expired': return 'Expirada';
   }
+}
+
+export function getOfferAvailabilityState(offer: Offer, today?: string): OfferAvailabilityStatus {
+  return getAvailabilityState(offer, today);
+}
+
+export function getOfferAvailabilityLabel(offer: Offer, today?: string): string {
+  const state = getAvailabilityState(offer, today);
+  const icon = state === 'active' ? '🟢'
+    : state === 'price_update' ? '🟠'
+      : state === 'promotion_expired' ? '🔴'
+        : state === 'out_of_stock' || state === 'archived' ? '⚫'
+          : state === 'unavailable' ? '⚪' : '📝';
+  return `${icon} ${AVAILABILITY_LABELS[state]}`;
+}
+
+export function getOfferCategoryLabel(category: string): string {
+  return OFFER_CATEGORIES.find((item) => item.slug === category)?.label
+    || CATEGORIES.find((item) => item.slug === category)?.label
+    || category
+    || 'Sin categoría';
 }
 
 export function isOfferActive(offer: Offer): boolean {

@@ -39,7 +39,7 @@ const discount = getOfferDiscount(offer);
     <p>{offer.shortDescription}</p>
 
     <div class="offer-price-row">
-      <PriceBlock currentPrice={offer.currentPrice} previousPrice={offer.previousPriceVerified ? offer.previousPrice : undefined} />
+      <PriceBlock currentPrice={offer.currentPrice} previousPrice={offer.previousPriceVerified ? offer.previousPrice : undefined} currency={offer.currency || 'EUR'} />
       <CouponBlock coupon={offer.coupon} />
     </div>
 

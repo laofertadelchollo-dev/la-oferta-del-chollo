@@ -253,6 +253,13 @@ h2 { font-size: clamp(1.8rem, 3vw, 2.5rem); margin-bottom: 0.9rem; }
 .admin-record a { overflow-wrap: anywhere; }
 .admin-filter { display: flex; align-items: center; gap: 0.75rem; max-width: 340px; margin: 1rem 0; color: var(--muted); font-weight: 600; }
 .admin-filter select { flex: 1; min-width: 0; padding: 0.65rem; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+.admin-lifecycle-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 0.8rem; max-width: none; }
+.admin-lifecycle-filters label { display: grid; gap: 0.35rem; min-width: 145px; }
+.admin-lifecycle-filters input:not([type="checkbox"]), .admin-lifecycle-filters select { min-width: 0; padding: 0.6rem; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+.admin-lifecycle-filters label:has(input[type="checkbox"]) { display: flex; align-items: center; min-width: auto; }
+.admin-review-queue { margin: 1rem 0; padding: 1rem; border: 1px solid #f2b06f; border-radius: 10px; background: #fff8ed; }
+.admin-review-queue h3 { margin-top: 0; }
+.admin-review-queue ul { margin-bottom: 0; padding-left: 1.25rem; }
 .admin-import, .admin-simulator { margin-top: 2rem; padding: 1.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; }
 .admin-import > p, .admin-simulator > p { max-width: 75ch; }
 .admin-import code { overflow-wrap: anywhere; }
@@ -272,18 +279,42 @@ h2 { font-size: clamp(1.8rem, 3vw, 2.5rem); margin-bottom: 0.9rem; }
 .quick-offer-form input, .quick-offer-form select, .quick-offer-form textarea { width: 100%; min-width: 0; padding: 0.7rem; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
 .quick-offer-form .quick-wide { grid-column: 1 / -1; }
 .admin-table-wrap { width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: #fff; }
-.admin-imported-table { width: 100%; border-collapse: collapse; min-width: 880px; }
+.admin-imported-table { width: 100%; border-collapse: collapse; min-width: 1250px; }
 .admin-imported-table th, .admin-imported-table td { padding: 0.8rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
 .admin-imported-table thead { background: #f8fafc; }
 .admin-imported-table td:last-child .admin-record-actions { min-width: 280px; }
 .admin-imported-table small { display: inline-block; margin-top: 0.3rem; }
 .affiliate-missing { color: #b91c1c; font-weight: 800; }
+.excel-import { border-color: #a7d8bd; }
+.excel-preview-table { min-width: 1600px; }
+.excel-analysis-table { min-width: 1450px; }
+.excel-product-thumbnail { width: 76px; height: 76px; border-radius: 8px; object-fit: cover; background: #f1f5f9; }
+.excel-preview-table td select, .excel-analysis-table td select { max-width: 150px; margin-top: 0.4rem; padding: 0.4rem; border: 1px solid var(--border); border-radius: 6px; background: #fff; }
+.excel-import .admin-actions { margin-block: 1rem; }
 .admin-import-results ul { padding-left: 1.25rem; }
 .admin-import-results li { margin: 0.3rem 0; overflow-wrap: anywhere; }
 .admin-import-results .is-error { color: #b91c1c; font-weight: 600; }
 .admin-help { margin-top: 1.5rem; padding: 1rem; border: 1px solid var(--border); border-radius: 10px; background: #f8fafc; }
 .admin-help summary { cursor: pointer; font-weight: 700; }
 .admin-help li { margin: 0.4rem 0; }
+.promo-import { border-color: #f2b06f; }
+.promo-fields { margin-top: 1.5rem; }
+.promo-fields[hidden] { display: none; }
+.promo-fields > h3 { margin-top: 1.5rem; }
+.promo-preview { margin: 1.5rem 0; padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface, #f8fafc); }
+.promo-preview-content { display: grid; grid-template-columns: minmax(140px, 220px) 1fr; gap: 1rem; align-items: start; }
+.promo-preview-main-image { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; background: #fff; }
+.promo-preview-thumbnails, .promo-images-list, .telegram-images-preview { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-block: 1rem; }
+.promo-image-item { display: grid; gap: 0.4rem; width: min(150px, 42vw); padding: 0.5rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+.promo-image-item img, .promo-preview-thumbnails img, .telegram-images-preview img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; }
+.promo-image-item small { color: var(--muted); }
+.promo-image-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.promo-image-actions button { padding: 0.35rem 0.5rem; }
+.offer-image-gallery { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+.offer-image-gallery img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; }
+.promo-preview-thumbnails img { width: 72px; }
+.telegram-images-preview img { width: 100px; }
+.affiliate-missing { color: #b91c1c; font-weight: 700; }
 .telegram-confirmation { width: min(90vw, 680px); max-height: 85vh; overflow: auto; padding: 1.5rem; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
 .telegram-confirmation::backdrop { background: rgba(17, 24, 39, 0.65); }
 .telegram-confirmation pre { max-height: 45vh; overflow: auto; padding: 1rem; border: 1px solid var(--border); border-radius: 10px; background: #f8fafc; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
@@ -329,5 +360,6 @@ h2 { font-size: clamp(1.8rem, 3vw, 2.5rem); margin-bottom: 0.9rem; }
   .candidate-import-controls, .candidate-filter-controls { grid-template-columns: 1fr; }
   .quick-offer-form { grid-template-columns: 1fr; }
   .quick-offer-form .quick-wide { grid-column: auto; }
+  .promo-preview-content { grid-template-columns: 1fr; }
   .analytics-notice { inset-inline: 0.5rem; bottom: 0.5rem; align-items: stretch; flex-direction: column; }
 }

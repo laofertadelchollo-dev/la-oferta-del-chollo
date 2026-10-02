@@ -33,14 +33,14 @@ const productSchema = !offer.demo && offer.verified && outboundUrl ? {
   offers: {
     '@type': 'Offer',
     price: offer.currentPrice.toFixed(2),
-    priceCurrency: 'EUR',
+    priceCurrency: offer.currency || 'EUR',
     ...(Astro.site ? { url: new URL(`/oferta/${offer.slug}/`, Astro.site).toString() } : {}),
     ...(offer.expiresAt ? { priceValidUntil: offer.expiresAt } : {})
   }
 } : undefined;
 ---
 
-<Layout title={offer.title} description={offer.shortDescription} canonical={`/oferta/${offer.slug}/`} image={offer.image}>
+<Layout title={offer.title} description={offer.shortDescription} canonical={`/oferta/${offer.slug}/`} image={offer.image?.startsWith('data:') ? undefined : offer.image}>
   {productSchema && <script type="application/ld+json" set:html={JSON.stringify(productSchema).replace(/</g, '\\u003c')} />}
   <section class="section detail-hero">
     <div class="container detail-layout">
@@ -48,6 +48,13 @@ const productSchema = !offer.demo && offer.verified && outboundUrl ? {
         {offer.image
           ? <img src={offer.image} alt={offer.title} loading="eager" />
           : <div class="offer-image-placeholder detail-image-placeholder" aria-label="Imagen no disponible">Imagen no disponible</div>}
+        {offer.images && offer.images.length > 1 && (
+        <div class="offer-image-gallery" aria-label="Imágenes adicionales del producto">
+          {offer.images.filter((image) => !image.isPrimary).sort((left, right) => left.order - right.order).map((image) => (
+            <img src={image.url} alt={`${offer.title}, imagen adicional`} loading="lazy" />
+          ))}
+        </div>
+        )}
       </div>
 
       <div class="detail-content">
@@ -59,8 +66,8 @@ const productSchema = !offer.demo && offer.verified && outboundUrl ? {
         <h1>{offer.title}</h1>
 
         <div class="detail-pricing">
-          <div class="price-current">{formatMoney(offer.currentPrice)}</div>
-          {offer.previousPriceVerified && offer.previousPrice && <div class="price-old">{formatMoney(offer.previousPrice)}</div>}
+          <div class="price-current">{formatMoney(offer.currentPrice, offer.currency || 'EUR')}</div>
+          {offer.previousPriceVerified && offer.previousPrice && <div class="price-old">{formatMoney(offer.previousPrice, offer.currency || 'EUR')}</div>}
           {discount > 0 && <div class="discount-pill">-{discount}%</div>}
         </div>
 

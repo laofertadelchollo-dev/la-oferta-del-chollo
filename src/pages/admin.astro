@@ -1,6 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { CATEGORIES } from '../lib/site';
+import { OFFER_CATEGORIES } from '../lib/offer-lifecycle.js';
 const isAdminEnabled = import.meta.env.DEV;
 ---
 
@@ -14,6 +14,86 @@ const isAdminEnabled = import.meta.env.DEV;
         <strong>Solo para este navegador.</strong> Los cambios se guardan en el almacenamiento local de este dispositivo, no en un servidor. Exporta el JSON y actualiza <code>src/data/offers.json</code> para publicar cambios. El envío a Telegram solo se ofrece para ofertas publicadas, verificadas y con enlace afiliado; no introduzcas secretos aquí.
       </div>
       <p id="admin-status" class="admin-status" role="status" aria-live="polite"></p>
+
+      <section class="admin-import promo-import" aria-labelledby="promo-import-heading">
+        <h2 id="promo-import-heading">IMPORTAR DESDE ALIEXPRESS — PROMO ITEMS</h2>
+        <p>Pega el bloque promocional que facilita AliExpress. El enlace detectado se conserva exactamente; no se crean enlaces afiliados ni se consulta ninguna API.</p>
+        <label for="promo-material">Material promocional</label>
+        <textarea id="promo-material" rows="8" spellcheck="false" placeholder="Pega aquí el texto de Promo Items de AliExpress"></textarea>
+        <div class="admin-actions">
+          <button type="button" id="detect-promo" class="primary-btn">Detectar oferta</button>
+        </div>
+        <p id="promo-detect-status" class="admin-status" role="status" aria-live="polite"></p>
+        <div id="promo-fields" class="promo-fields" hidden>
+          <h3>Resultado detectado · revisa y edita los datos</h3>
+          <div class="quick-offer-form">
+            <label><span>Título *</span><input id="promo-title" maxlength="180" /></label>
+            <label><span>Precio actual</span><input id="promo-price" inputmode="decimal" placeholder="11,61" /></label>
+            <label><span>Moneda</span><input id="promo-currency" maxlength="3" placeholder="EUR" /></label>
+            <label class="quick-wide"><span>URL original (opcional; no viene necesariamente en Promo Items)</span><input id="promo-source-url" type="url" maxlength="2000" placeholder="https://www.aliexpress.com/..." /></label>
+            <label class="quick-wide"><span>Enlace afiliado *</span><input id="promo-affiliate-url" type="url" maxlength="2000" placeholder="https://s.click.aliexpress.com/..." /></label>
+            <label><span>ID de rastreo detectado</span><input id="promo-tracking-id" maxlength="120" /></label>
+            <label><span>Idioma detectado</span><input id="promo-language" maxlength="40" /></label>
+            <label><span>Promoción hasta (si aparece)</span><input id="promo-promotion-date" type="date" /></label>
+            <label>
+              <span>Categoría</span>
+              <select id="promo-category">
+                <option value="">Sin categoría</option>
+                {OFFER_CATEGORIES.map((category) => <option value={category.slug}>{category.label}</option>)}
+              </select>
+            </label>
+            <label><span>Vendedor (opcional)</span><input id="promo-seller" maxlength="120" /></label>
+            <label><span>Cupón (opcional)</span><input id="promo-coupon" maxlength="80" /></label>
+            <label class="quick-wide"><span>Condiciones (opcional; deben revisarse antes de verificar)</span><textarea id="promo-conditions" rows="2" maxlength="500"></textarea></label>
+          </div>
+          <h3>IMÁGENES DEL PRODUCTO</h3>
+          <p>Selecciona hasta 6 imágenes JPG, JPEG, PNG o WEBP. Se optimizan localmente para guardarlas con este borrador en este navegador; la primera es la principal.</p>
+          <label class="secondary-btn file-button">Añadir imágenes<input type="file" id="promo-images-input" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple /></label>
+          <p id="promo-images-status" class="admin-status" role="status" aria-live="polite"></p>
+          <div id="promo-images-list" class="promo-images-list" aria-label="Imágenes del producto"></div>
+          <section class="promo-preview" aria-labelledby="promo-preview-heading">
+            <h3 id="promo-preview-heading">Previsualización</h3>
+            <div id="promo-preview-content"></div>
+          </section>
+          <div class="admin-actions">
+            <button type="button" id="save-promo-draft" class="primary-btn">Guardar como borrador</button>
+          </div>
+        </div>
+        <details class="admin-help">
+          <summary>Cómo incorporar una oferta de AliExpress</summary>
+          <ol>
+            <li>Copia el texto y la URL del producto desde AliExpress.</li>
+            <li>Utiliza el Generador de enlaces oficial de tu cuenta de afiliación.</li>
+            <li>Selecciona el ID de rastreo correspondiente y genera el enlace.</li>
+            <li>Pega el material promocional en este importador y revisa los campos detectados.</li>
+            <li>Añade las imágenes que quieras asociar a la oferta y comprueba la previsualización.</li>
+            <li>Guarda el borrador, verifica manualmente precio, disponibilidad y condiciones y, solo entonces, publica.</li>
+            <li>El borrador para Telegram se prepara en el panel. No se envía automáticamente.</li>
+          </ol>
+        </details>
+      </section>
+
+      <section class="admin-import excel-import" aria-labelledby="excel-import-heading">
+        <h2 id="excel-import-heading">📥 IMPORTAR ALIEXPRESS — EXCEL</h2>
+        <p>Sube el archivo .xlsx descargado desde AliExpress. Se leerán las columnas disponibles; las imágenes se muestran directamente desde sus URLs originales. Esta importación no publica ni envía nada.</p>
+        <label class="secondary-btn file-button">Seleccionar Excel<input type="file" id="aliexpress-excel-file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" /></label>
+        <p id="aliexpress-excel-status" class="admin-status" role="status" aria-live="polite"></p>
+        <div id="aliexpress-excel-results" class="admin-import-results" aria-live="polite"></div>
+        <div id="aliexpress-excel-preview-wrap" hidden>
+          <div class="admin-actions">
+            <button type="button" id="aliexpress-excel-import-all" class="primary-btn">Importar todos</button>
+            <button type="button" id="aliexpress-excel-import-selected" class="secondary-btn">Importar seleccionados</button>
+            <button type="button" id="aliexpress-excel-select-all" class="secondary-btn">Seleccionar todos</button>
+            <button type="button" id="aliexpress-excel-discard" class="secondary-btn danger-btn">Descartar</button>
+          </div>
+          <div class="admin-table-wrap">
+            <table class="admin-imported-table excel-preview-table">
+              <thead><tr><th>Seleccionar</th><th>Imagen</th><th>Producto / ID</th><th>Precio</th><th>Descuento</th><th>Ventas 180d</th><th>Valoración</th><th>Comisión %</th><th>Comisión estimada</th><th>Cupón</th><th>Enlace afiliado</th><th>Fila</th></tr></thead>
+              <tbody id="aliexpress-excel-preview"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
 
       <div class="admin-toolbar">
         <button type="button" id="new-offer" class="primary-btn">Crear oferta</button>
@@ -40,7 +120,7 @@ const isAdminEnabled = import.meta.env.DEV;
             <span>Categoría</span>
             <select id="quick-category">
               <option value="">Sin categoría</option>
-              {CATEGORIES.map((category) => <option value={category.slug}>{category.label}</option>)}
+              {OFFER_CATEGORIES.map((category) => <option value={category.slug}>{category.label}</option>)}
             </select>
           </label>
           <label><span>Vendedor (opcional)</span><input id="quick-seller" maxlength="120" /></label>
@@ -77,13 +157,45 @@ const isAdminEnabled = import.meta.env.DEV;
 
       <section class="admin-records" aria-labelledby="imported-offers-heading">
         <h2 id="imported-offers-heading">Ofertas importadas</h2>
+        <div class="admin-filter admin-lifecycle-filters">
+          <label>Estado<select id="imported-state-filter"><option value="all">Todos</option><option value="active">Activas</option><option value="price_update">Necesitan actualización</option><option value="promotion_expired">Caducadas</option><option value="out_of_stock">Sin existencias</option><option value="unavailable">No disponibles</option><option value="archived">Archivadas</option><option value="draft">Borradores</option></select></label>
+          <label>Categoría<select id="imported-category-filter"><option value="all">Todas</option>{OFFER_CATEGORIES.map((category) => <option value={category.slug}>{category.label}</option>)}</select></label>
+          <label>Subcategoría<input id="imported-subcategory-filter" type="search" placeholder="Audio, cocina…" /></label>
+          <label><input id="imported-today-filter" type="checkbox" /> Ofertas del día</label>
+          <label><input id="imported-featured-filter" type="checkbox" /> Destacadas</label>
+          <label>Promoción<select id="imported-promotion-filter"><option value="all">Todas</option><option value="upcoming">Próximas (3 días)</option><option value="expired">Caducadas</option><option value="dated">Con fecha</option><option value="undated">Sin fecha</option></select></label>
+          <label><input id="imported-review-filter" type="checkbox" /> Necesitan revisión</label>
+          <label>Orden<select id="imported-sort"><option value="recent">Más recientes</option><option value="price">Precio</option><option value="checked">Última comprobación</option><option value="promotion">Caducidad</option><option value="category">Categoría</option></select></label>
+        </div>
         <div class="admin-table-wrap">
           <table class="admin-imported-table">
-            <thead><tr><th>Producto</th><th>Precio</th><th>Categoría</th><th>Estado</th><th>Verificada</th><th>Enlace</th><th>Fecha</th><th>Acciones</th></tr></thead>
+            <thead><tr><th>Producto</th><th>Precio</th><th>Categoría</th><th>Estado</th><th>Promoción hasta</th><th>Última comprobación</th><th>Día</th><th>Destacado</th><th>Acciones</th></tr></thead>
             <tbody id="imported-offers-table"></tbody>
           </table>
         </div>
         <p id="imported-offers-empty" class="empty-state">Todavía no hay borradores importados.</p>
+      </section>
+
+      <section class="admin-records" aria-labelledby="excel-analysis-heading">
+        <h2 id="excel-analysis-heading">Análisis de productos AliExpress</h2>
+        <div class="admin-filter admin-lifecycle-filters excel-analysis-filters">
+          <label>Categoría<select id="excel-filter-category"><option value="all">Todas</option>{OFFER_CATEGORIES.map((category) => <option value={category.slug}>{category.label}</option>)}</select></label>
+          <label>Precio mínimo<input id="excel-filter-price-min" type="number" min="0" step="0.01" /></label>
+          <label>Precio máximo<input id="excel-filter-price-max" type="number" min="0" step="0.01" /></label>
+          <label>Cupón<select id="excel-filter-coupon"><option value="all">Todos</option><option value="yes">Con cupón</option><option value="no">Sin cupón</option></select></label>
+          <label>Vídeo<select id="excel-filter-video"><option value="all">Todos</option><option value="yes">Con vídeo</option><option value="no">Sin vídeo</option></select></label>
+          <label>Enlace afiliado<select id="excel-filter-affiliate"><option value="all">Todos</option><option value="yes">Con enlace</option><option value="no">Sin enlace</option></select></label>
+          <label>Telegram<select id="excel-filter-telegram"><option value="all">Todos</option><option value="yes">Publicado</option><option value="no">No publicado</option></select></label>
+          <label>Estado<select id="excel-filter-status"><option value="all">Todos</option><option value="draft">Borrador</option><option value="active">Activa</option><option value="price_update">Necesita actualización</option><option value="promotion_expired">Promoción caducada</option><option value="out_of_stock">Sin existencias</option><option value="unavailable">No disponible</option><option value="archived">Archivada</option></select></label>
+          <label>Ordenar por<select id="excel-sort"><option value="sales">Ventas</option><option value="commission">Comisión estimada</option><option value="discount">Descuento</option><option value="rating">Valoración</option><option value="price">Precio</option><option value="captured">Fecha de captura</option></select></label>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-imported-table excel-analysis-table">
+            <thead><tr><th>Producto</th><th>Categoría</th><th>Subcategoría</th><th>Etiquetas</th><th>Precio</th><th>Descuento</th><th>Ventas 180d</th><th>Valoración</th><th>Comisión %</th><th>Comisión estimada</th><th>Cupón</th><th>Vídeo</th><th>Fecha captura</th><th>Estado</th><th>Telegram</th><th>Acciones</th></tr></thead>
+            <tbody id="aliexpress-excel-products"></tbody>
+          </table>
+        </div>
+        <p id="aliexpress-excel-empty" class="empty-state" hidden>No hay productos que coincidan con los filtros.</p>
       </section>
 
       <div class="admin-grid admin-workspace">
@@ -117,19 +229,24 @@ const isAdminEnabled = import.meta.env.DEV;
             <span>Categoría *</span>
             <select id="category" required>
               <option value="">Elige una categoría</option>
-              {CATEGORIES.map((category) => <option value={category.slug}>{category.label}</option>)}
+              {OFFER_CATEGORIES.map((category) => <option value={category.slug}>{category.label}</option>)}
             </select>
           </label>
+          <label><span>Subcategoría (opcional)</span><input type="text" id="subcategory" maxlength="80" /></label>
           <label>
             <span>Imagen (ruta local o URL https)</span>
             <input type="text" id="image" maxlength="500" placeholder="/images/mi-producto.webp" />
           </label>
           <label>
-            <span>Precio actual (€) *</span>
+            <span>Precio actual *</span>
             <input type="number" id="current-price" min="0.01" step="0.01" required />
           </label>
           <label>
-            <span>Precio anterior (€)</span>
+            <span>Moneda (ISO 4217)</span>
+            <input type="text" id="currency" maxlength="3" value="EUR" />
+          </label>
+          <label>
+            <span>Precio anterior</span>
             <input type="number" id="previous-price" min="0.01" step="0.01" />
           </label>
           <label class="checkbox-row">
@@ -169,6 +286,8 @@ const isAdminEnabled = import.meta.env.DEV;
             <span>Fecha de caducidad (opcional)</span>
             <input type="date" id="expires-at" />
           </label>
+          <label><span>Fin de promoción (opcional)</span><input type="date" id="promotion-end-date" /></label>
+          <label><span>Disponibilidad</span><select id="availability-status"><option value="draft">Borrador</option><option value="active">Activa</option><option value="price_update">Necesita actualización</option><option value="promotion_expired">Promoción caducada</option><option value="out_of_stock">Sin existencias</option><option value="unavailable">No disponible</option><option value="archived">Archivada</option></select></label>
           <label>
             <span>Estado editorial</span>
             <select id="status">
@@ -186,6 +305,7 @@ const isAdminEnabled = import.meta.env.DEV;
             <input type="checkbox" id="featured" />
             <span>Destacar en portada</span>
           </label>
+          <label class="checkbox-row"><input type="checkbox" id="featured-today" /><span>🔥 Incluir en Ofertas del Día</span></label>
           <label>
             <span>Etiquetas separadas por comas</span>
             <input type="text" id="tags" maxlength="300" />
@@ -198,8 +318,9 @@ const isAdminEnabled = import.meta.env.DEV;
 
         <aside class="telegram-panel">
           <h2>Borrador para Telegram</h2>
-          <p>El borrador usa solo los datos del formulario. No se publica ni se envía a Telegram.</p>
+          <p>El borrador usa los datos e imágenes asociados. No se publica ni se envía a Telegram.</p>
           <textarea id="telegram-output" rows="14" readonly aria-label="Texto de Telegram generado"></textarea>
+          <div id="telegram-images-preview" class="promo-images-list" aria-label="Imágenes incluidas en el borrador de Telegram"></div>
           <button type="button" id="copy-telegram" class="primary-btn">Copiar texto</button>
           <p id="telegram-status" class="muted-text" role="status" aria-live="polite"></p>
         </aside>
@@ -263,6 +384,7 @@ const isAdminEnabled = import.meta.env.DEV;
 
       <section class="admin-records" aria-labelledby="offers-heading">
         <h2 id="offers-heading">Ofertas del navegador</h2>
+        <section class="admin-review-queue" aria-labelledby="review-queue-heading"><h3 id="review-queue-heading">⚠️ Ofertas que necesitan revisión</h3><div id="review-queue"></div></section>
         <label class="admin-filter" for="offer-filter">
           Filtrar ofertas
           <select id="offer-filter">

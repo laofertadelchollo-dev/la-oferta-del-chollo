@@ -37,7 +37,11 @@ export function createOffer(candidate, editorial = {}) {
     demo: candidate.demo === true,
     score: editorial.score ?? 0,
     tags: editorial.tags || [],
-    status: 'draft'
+    status: 'draft',
+    availabilityStatus: 'draft',
+    promotionEndDate: editorial.promotionEndDate || null,
+    subcategory: editorial.subcategory || '',
+    featuredToday: false
   };
 }
 
@@ -52,7 +56,7 @@ export function publishOffer(offer, now = new Date()) {
     throw new Error(`La oferta no está verificada: ${verification.errors.join(' ') || 'marca la oferta como verificada primero.'}`);
   }
   if (!isSafeWebUrl(offer.affiliateUrl)) throw new Error('Para publicar, añade el enlace afiliado completo y real de esta oferta.');
-  const published = { ...offer, status: 'published' };
+  const published = { ...offer, status: 'published', availabilityStatus: offer.availabilityStatus || 'active' };
   if (!isProductionOfferEligible(published, now.toISOString().slice(0, 10))) {
     throw new Error('La oferta no cumple los requisitos de publicación o está caducada.');
   }

@@ -1,5 +1,6 @@
-import { isCalendarDate, isProductionOfferEligible, isSafeDemoUrl, isSafeWebUrl } from './offer-policy.js';
+import { isCalendarDate, isProductionOfferEligible, isSafeDemoUrl, isSafeOfferImage, isSafeWebUrl } from './offer-policy.js';
 import { calculateDiscount } from './offer-math.js';
+import { AVAILABILITY_STATES } from './offer-lifecycle.js';
 
 const statuses = new Set(['draft', 'verified', 'published', 'expired']);
 const requiredFields = [
@@ -28,11 +29,14 @@ export function validateOfferList(value) {
     for (const field of textFields) {
       if (typeof item[field] !== 'string') errors.push(`${label}: «${field}» debe ser texto.`);
     }
-    if (!Number.isFinite(item.currentPrice) || item.currentPrice <= 0) errors.push(`${label}: «currentPrice» debe ser mayor que cero.`);
+    const incompleteDraftPrice = item.status === 'draft' && item.currentPrice === 0;
+    if (!Number.isFinite(item.currentPrice) || item.currentPrice < 0 || (item.currentPrice === 0 && !incompleteDraftPrice)) {
+      errors.push(`${label}: «currentPrice» debe ser mayor que cero, salvo en un borrador pendiente.`);
+    }
     if (item.previousPrice !== undefined && (!Number.isFinite(item.previousPrice) || item.previousPrice <= item.currentPrice)) {
       errors.push(`${label}: «previousPrice» debe ser mayor que «currentPrice».`);
     }
-    if (item.discount !== undefined && (!Number.isFinite(item.discount) || item.discount < 0 || item.discount > 100)) {
+    if (item.discount !== undefined && item.discount !== null && (!Number.isFinite(item.discount) || item.discount < 0 || item.discount > 100)) {
       errors.push(`${label}: «discount» debe ser un porcentaje entre 0 y 100.`);
     }
     if (Number.isFinite(item.currentPrice) && Number.isFinite(item.discount)) {
@@ -47,6 +51,22 @@ export function validateOfferList(value) {
     if (typeof item.status !== 'string' || !statuses.has(item.status)) errors.push(`${label}: estado desconocido; usa draft, verified, published o expired.`);
     if (typeof item.publishedAt === 'string' && !isCalendarDate(item.publishedAt)) errors.push(`${label}: «publishedAt» no es una fecha válida (AAAA-MM-DD).`);
     if (item.expiresAt !== undefined && item.expiresAt !== '' && !isCalendarDate(item.expiresAt)) errors.push(`${label}: «expiresAt» no es una fecha válida (AAAA-MM-DD).`);
+    if (item.promotionEndDate !== undefined && item.promotionEndDate !== null && item.promotionEndDate !== ''
+      && !isCalendarDate(item.promotionEndDate)) errors.push(`${label}: «promotionEndDate» no es una fecha válida (AAAA-MM-DD).`);
+    if (item.lastCheckedAt !== undefined && item.lastCheckedAt !== '' && !Number.isFinite(Date.parse(item.lastCheckedAt))) {
+      errors.push(`${label}: «lastCheckedAt» no es una fecha válida.`);
+    }
+    if (item.availabilityStatus !== undefined && !AVAILABILITY_STATES.includes(item.availabilityStatus)) {
+      errors.push(`${label}: «availabilityStatus» no es válido.`);
+    }
+    if (item.subcategory !== undefined && typeof item.subcategory !== 'string') errors.push(`${label}: «subcategory» debe ser texto.`);
+    if (item.featuredToday !== undefined && typeof item.featuredToday !== 'boolean') errors.push(`${label}: «featuredToday» debe ser booleano.`);
+    if (item.priceHistory !== undefined && (!Array.isArray(item.priceHistory) || !item.priceHistory.every((entry) =>
+      entry && Number.isFinite(entry.price) && entry.price > 0
+      && typeof entry.currency === 'string' && /^[A-Z]{3}$/.test(entry.currency)
+      && Number.isFinite(Date.parse(entry.checkedAt))))) {
+      errors.push(`${label}: «priceHistory» debe contener fechas, precios y monedas válidos.`);
+    }
     if (item.lastVerifiedAt !== undefined && item.lastVerifiedAt !== '' && !Number.isFinite(Date.parse(item.lastVerifiedAt))) {
       errors.push(`${label}: «lastVerifiedAt» no es una fecha válida.`);
     }
@@ -54,8 +74,26 @@ export function validateOfferList(value) {
       const validUrl = isSafeWebUrl(item[field]) || (item.demo === true && field === 'sourceUrl' && isSafeDemoUrl(item[field]));
       if (typeof item[field] === 'string' && item[field] && !validUrl) errors.push(`${label}: «${field}» debe ser una URL HTTP(S) real.`);
     }
-    if (item.image !== undefined && (typeof item.image !== 'string' || (item.image !== '' && !((item.image.startsWith('/') && !item.image.startsWith('//')) || isSafeWebUrl(item.image))))) {
+    if (item.image !== undefined && (typeof item.image !== 'string' || (item.image !== '' && !isSafeOfferImage(item.image)))) {
       errors.push(`${label}: «image» debe ser una ruta local o URL HTTP(S).`);
+    }
+    if (item.currency !== undefined && (typeof item.currency !== 'string' || !/^[A-Z]{3}$/.test(item.currency))) {
+      errors.push(`${label}: «currency» debe ser un código ISO 4217 de tres letras.`);
+    }
+    if (item.images !== undefined) {
+      if (!Array.isArray(item.images) || item.images.length > 6) {
+        errors.push(`${label}: «images» debe ser un array de hasta seis imágenes.`);
+      } else {
+        item.images.forEach((image, imageIndex) => {
+          if (!image || typeof image !== 'object' || !isSafeOfferImage(image.url)
+            || typeof image.isPrimary !== 'boolean' || !Number.isInteger(image.order) || image.order < 0) {
+            errors.push(`${label}: la imagen ${imageIndex + 1} no tiene una URL, orden o imagen principal válidos.`);
+          }
+        });
+        if (item.images.length && item.images.filter((image) => image?.isPrimary === true).length !== 1) {
+          errors.push(`${label}: «images» debe tener exactamente una imagen principal.`);
+        }
+      }
     }
     if (item.previousPriceVerified !== undefined && typeof item.previousPriceVerified !== 'boolean') errors.push(`${label}: «previousPriceVerified» debe ser booleano.`);
     if (item.demo === true && item.status !== 'draft' && item.status !== 'expired') errors.push(`${label}: una oferta DEMO solo puede estar en draft o expired.`);
@@ -91,7 +129,7 @@ export function migrateStoredOfferList(value) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) return item;
     return {
       ...item,
-      discount: typeof item.discount === 'number'
+      discount: item.discount === null ? null : typeof item.discount === 'number'
         ? item.discount
         : calculateDiscount(item.currentPrice, item.previousPrice, item.previousPriceVerified === true),
       featured: typeof item.featured === 'boolean' ? item.featured : false,
@@ -101,7 +139,16 @@ export function migrateStoredOfferList(value) {
       coupon: typeof item.coupon === 'string' ? item.coupon : '',
       conditions: typeof item.conditions === 'string' ? item.conditions : '',
       seller: typeof item.seller === 'string' ? item.seller : '',
-      affiliateUrl: typeof item.affiliateUrl === 'string' ? item.affiliateUrl : ''
+      affiliateUrl: typeof item.affiliateUrl === 'string' ? item.affiliateUrl : '',
+      currency: typeof item.currency === 'string' ? item.currency : 'EUR',
+      subcategory: typeof item.subcategory === 'string' ? item.subcategory : '',
+      availabilityStatus: AVAILABILITY_STATES.includes(item.availabilityStatus) ? item.availabilityStatus
+        : item.status === 'expired' ? 'promotion_expired'
+          : item.status === 'published' || item.status === 'verified' ? 'active' : 'draft',
+      promotionEndDate: typeof item.promotionEndDate === 'string' && item.promotionEndDate ? item.promotionEndDate : null,
+      lastCheckedAt: typeof item.lastCheckedAt === 'string' ? item.lastCheckedAt : '',
+      featuredToday: typeof item.featuredToday === 'boolean' ? item.featuredToday : false,
+      priceHistory: Array.isArray(item.priceHistory) ? item.priceHistory : []
     };
   });
   return validateOfferList(migrated);
